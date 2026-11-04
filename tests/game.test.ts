@@ -565,3 +565,24 @@ describe('player-controlled jokers', () => {
     expect(code(() => act(s, 'p2', { type: 'set_joker', index: 0, as: null }))).toBe('ROUND_ENDED');
   });
 });
+
+describe('sideshow availability reasons', () => {
+  it('explains why the sideshow is unavailable', () => {
+    let s = mkRound(4);
+    expect(legalActions(s, 'p0').sideshowBlocked).toBe('See your cards first');
+    s = act(s, 'p0', { type: 'see' });
+    expect(legalActions(s, 'p0').sideshowBlocked).toBe('P3 is still blind');
+    s = act(s, 'p3', { type: 'see' });
+    expect(legalActions(s, 'p0').sideshow).not.toBeNull();
+    expect(legalActions(s, 'p0').sideshowBlocked).toBeNull();
+    // not my turn -> no reason
+    expect(legalActions(s, 'p1').sideshowBlocked).toBeNull();
+  });
+  it('no reason when only two are left (show applies) or when disabled', () => {
+    let s = mkRound(3);
+    s = act(s, 'p0', { type: 'pack' });
+    expect(legalActions(s, 'p1').sideshowBlocked).toBeNull();
+    const off = mkRound(3, { rules: { sideshowEnabled: false } });
+    expect(legalActions(off, 'p0').sideshowBlocked).toBeNull();
+  });
+});

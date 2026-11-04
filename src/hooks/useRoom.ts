@@ -156,6 +156,24 @@ export function useRoom(code: string) {
     };
   }, [phase, code, refresh, subscribe, s]);
 
+  // Watchdog: if no update has arrived for a while during a live round, re-sync (covers a dropped broadcast).
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    let lastV = s.getState().view?.room.v ?? 0;
+    let lastChange = Date.now();
+    const t = setInterval(() => {
+      const v = s.getState().view;
+      const cur = v?.room.v ?? 0;
+      if (cur !== lastV) { lastV = cur; lastChange = Date.now(); return; }
+      const live = v?.room.game && v.room.game.phase !== 'ended';
+      if (live && document.visibilityState === 'visible' && Date.now() - lastChange > 6000) {
+        lastChange = Date.now();
+        void refresh();
+      }
+    }, 2000);
+    return () => clearInterval(t);
+  }, [phase, refresh, s]);
+
   // Server-side timeout processing: when a deadline passes, ask the server to enforce it.
   const view = useRoomStore((x) => x.view);
   const deadline =

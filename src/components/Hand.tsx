@@ -13,8 +13,23 @@ export function Hand({ view, onSee, busy }: { view: ClientView; onSee: () => voi
   const jokers = game?.jokerRanks ?? [];
   if (!inRound || !priv) return <div className="h-[110px]" />;
   const cards = priv.cards;
+  const jokerGame = !!game && (game.jokerRanks.length > 0 || game.lowestCardJoker);
+  const myJokers = priv.jokers?.indexes.length ?? 0;
+  const anyAuto = !!priv.jokers?.auto.some((a, i) => a && priv.jokers!.indexes.includes(i));
+  const jokerWord = game?.lowestCardJoker ? 'your lowest card' : (game?.jokerRanks ?? []).map((r) => (({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }) as Record<number, string>)[r] ?? String(r)).join(' / ');
   return (
     <div className="flex flex-col items-center gap-1" data-testid="hand">
+      {jokerGame && !priv.folded && game!.phase !== 'ended' && (
+        <div className={`w-full truncate rounded-lg border px-2.5 py-1 text-center text-[11.5px] leading-snug ${cards && myJokers > 0 ? 'border-gold bg-gold/15 text-paper' : 'border-line bg-panel-2 text-paper/85'}`} data-testid="joker-coach">
+          {!cards ? (
+            <>🃏 <b>Jokers: {jokerWord}.</b> See cards, then <b>tap a joker</b> to pick its card.</>
+          ) : myJokers > 0 ? (
+            <>👇 <b>Tap the glowing joker</b> to choose its card{anyAuto ? ' (now: Auto = best hand)' : ''}</>
+          ) : (
+            <>No jokers in your hand this round ({jokerWord} are jokers).</>
+          )}
+        </div>
+      )}
       <div className="flex items-start gap-2">
         {[0, 1, 2].map((i) => {
           const isJoker = !!cards?.[i] && !!priv.jokers?.indexes.includes(i);
@@ -33,7 +48,7 @@ export function Hand({ view, onSee, busy }: { view: ClientView; onSee: () => voi
           );
           if (!isJoker || priv.folded || game!.phase === 'ended') return <div key={i}>{card}</div>;
           return (
-            <button key={i} type="button" onClick={() => useUI.getState().openJoker(i)} className="flex flex-col items-center gap-1 rounded-lg" aria-label={`Joker card ${i + 1}: tap to choose its value`} data-testid={`joker-${i}`}>
+            <button key={i} type="button" onClick={() => useUI.getState().openJoker(i)} className={`flex flex-col items-center gap-1 rounded-lg ${auto ? 'joker-glow' : ''}`} aria-label={`Joker card ${i + 1}: tap to choose its value`} data-testid={`joker-${i}`}>
               {card}
               <span className={`rounded-full px-2 py-[1px] text-[10px] font-bold ${auto ? 'bg-panel-2 text-gold-soft ring-1 ring-gold/40' : 'bg-gold text-ink'}`} data-testid="joker-as">
                 {as ? `= ${cardText(as)}${auto ? ' · auto' : ''}` : 'tap to set'}

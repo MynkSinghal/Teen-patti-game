@@ -195,3 +195,36 @@ test('a short stack goes all-in instead of being forced out; side pot result is 
   await sql.end();
   void c;
 });
+
+test('sideshow: clear prompt for the one asked, waiting state, private result, public banner, blocked reason', async ({ browser }) => {
+  const { host, b, c, code } = await setup(browser);
+  const sql = postgres(process.env.SUPABASE_DB_URL ?? 'postgres://postgres:postgres@localhost:5432/tp_test', { max: 1, onnotice: () => {} });
+  await host.page.getByTestId('pick-classic').click();
+  await host.page.getByTestId('start-round').click();
+  await expect(b.page.getByTestId('table')).toBeVisible();
+  const setHand = (name: string, cards: { rank: number; suit: string }[]) => sql`update player_hands set cards = ${sql.json(cards)}
+    where player_id = (select id from players where display_name = ${name} and room_id = (select id from rooms where room_code = ${code}))
+    and game_id = (select id from games where room_id = (select id from rooms where room_code = ${code}) order by round_number desc limit 1)`;
+  await setHand('Asha', [{ rank: 2, suit: 'S' }, { rank: 5, suit: 'H' }, { rank: 9, suit: 'D' }]);
+  await setHand('Bela', [{ rank: 14, suit: 'S' }, { rank: 14, suit: 'H' }, { rank: 14, suit: 'D' }]);
+  // Bela (first to act) looks; the sideshow is greyed out with a reason because Asha is still blind
+  await b.page.getByTestId('see-cards').click();
+  await expect(b.page.getByTestId('btn-sideshow-blocked')).toContainText('Asha is still blind');
+  await host.page.getByTestId('see-cards').click();
+  await expect(b.page.getByTestId('btn-sideshow')).toBeVisible({ timeout: 25_000 });
+  await b.page.getByTestId('btn-sideshow').click();
+  await expect(host.page.getByTestId('sideshow-prompt')).toBeVisible({ timeout: 25_000 });
+  await expect(host.page.getByTestId('sideshow-prompt')).toContainText('Bela wants a sideshow');
+  await expect(b.page.getByTestId('sideshow-waiting')).toContainText('Waiting for Asha');
+  await expect(c.page.getByTestId('sideshow-spectator')).toContainText('Bela asked Asha for a sideshow', { timeout: 25_000 });
+  await host.page.getByTestId('sideshow-accept').click();
+  // both players privately see the comparison
+  await expect(host.page.getByTestId('sideshow-result')).toContainText('You lost the sideshow', { timeout: 25_000 });
+  await expect(b.page.getByTestId('sideshow-result')).toContainText('You won the sideshow', { timeout: 25_000 });
+  // the third player only gets a public explanation, no cards
+  await expect(c.page.getByTestId('table-banner')).toContainText('compared cards privately. Asha packed', { timeout: 25_000 });
+  await expect(c.page.getByTestId('sideshow-result')).toHaveCount(0);
+  await b.page.getByTestId('sideshow-result-close').click();
+  await expect(b.page.getByTestId('sideshow-result-chip')).toContainText('won');
+  await sql.end();
+});

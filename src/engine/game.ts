@@ -408,11 +408,13 @@ export interface LegalActions {
   sideshow: { targetId: string; cost: number } | null;
   show: { cost: number; allIn: boolean } | null;
   allIn: { amount: number } | null;
+  /** Why the sideshow button is greyed out right now (only on your turn, when it isn't available). */
+  sideshowBlocked: string | null;
   respond: boolean;
 }
 
 export function legalActions(state: EngineState, playerId: string): LegalActions {
-  const none: LegalActions = { see: false, bet: null, pack: false, sideshow: null, show: null, allIn: null, respond: false };
+  const none: LegalActions = { see: false, bet: null, pack: false, sideshow: null, show: null, allIn: null, sideshowBlocked: null, respond: false };
   const me = getPlayer(state, playerId);
   if (!me || me.folded || state.phase === 'ended') return none;
   const out = { ...none, see: !me.seen };
@@ -433,6 +435,7 @@ export function legalActions(state: EngineState, playerId: string): LegalActions
     }
   }
   if (me.balance > 0 && me.balance < call) out.allIn = { amount: me.balance };
+  if (!out.sideshow) out.sideshowBlocked = sideshowBlockedReason(state, me);
   if (showAllowed(state, me) && (showCost(state, me) === 0 || me.balance > 0)) {
     out.show = { cost: Math.min(showCost(state, me), me.balance), allIn: me.balance < showCost(state, me) };
   }
@@ -552,4 +555,18 @@ function jokerView(state: EngineState, playerId: string) {
   if (!idx.length) return null;
   const rh = resolveHand(cards, state.ctx, state.assign[playerId]);
   return { indexes: idx, as: rh.jokerAs, auto: rh.auto };
+}
+
+/** Human reason the sideshow can't be requested right now, or null when it simply doesn't apply. */
+function sideshowBlockedReason(state: EngineState, me: EnginePlayer): string | null {
+  const r = state.rules;
+  if (!r.sideshowEnabled) return null;
+  const alive = activePlayers(state).length;
+  if (alive === 2 && !r.sideshowWhenTwoLeft) return null; // use Show instead
+  if (!me.seen) return 'See your cards first';
+  if (me.sideshowRequests >= r.maxSideshowRequests) return 'No sideshows left this round';
+  const prev = previousActiveBefore(state, me.id);
+  if (!prev.seen) return `${prev.name} is still blind`;
+  if (me.balance < chaalCost(r, state.stake, true)) return 'Not enough chips';
+  return null;
 }

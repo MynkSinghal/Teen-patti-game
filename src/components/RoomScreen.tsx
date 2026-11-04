@@ -13,7 +13,9 @@ import { ChatBanner, ChatBubble, ChatSheet } from './Chat';
 import { Hand } from './Hand';
 import { JokerSheet } from './JokerSheet';
 import { Lobby } from './Lobby';
-import { RoundEnd, SideshowNote } from './Overlays';
+import { SideshowLayer, SideshowResult, TableBanner } from './Sideshow';
+import { VariationIntro } from './VariationIntro';
+import { RoundEnd } from './Overlays';
 import { FeedSheet, LeaveSheet, MenuSheet, PotSheet } from './Panels';
 import { RulesSheet } from './RulesSheet';
 import { StakeLadder } from './StakeLadder';
@@ -191,7 +193,7 @@ export function RoomScreen({ code }: { code: string }) {
           </div>
           <div className="mt-auto space-y-2 ls:mt-0 ls:min-h-0 ls:overflow-y-auto ls:pr-1" data-testid="side-panel">
             {g && g.phase !== 'ended' && <StakeLadder game={g} names={names} />}
-            <SideshowNote view={view} />
+            <SideshowResult view={view} />
             <Hand view={view} busy={busy} onSee={() => send({ type: 'see' })} />
             <MyMoney view={view} />
             <div className="ls:sticky ls:bottom-0 ls:z-10 ls:-mx-1 ls:bg-ink/95 ls:px-1 ls:pb-1 ls:pt-1 ls:backdrop-blur" data-testid="action-dock">
@@ -204,6 +206,9 @@ export function RoomScreen({ code }: { code: string }) {
       )}
 
       <RotateHint active={showTable} />
+      {showTable && <SideshowLayer view={view} send={send} busy={busy} />}
+      {showTable && <TableBanner view={view} />}
+      {showTable && <VariationIntro view={view} />}
       <ChatBubble />
       <ChatSheet code={code} />
       <MenuSheet view={view} code={code} send={send} />

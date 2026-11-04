@@ -96,3 +96,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* glowing outline on joker cards the player hasn't set yet */
+@keyframes joker-glow { 0%, 100% { box-shadow: 0 0 0 2px rgba(201,162,75,.9), 0 0 6px rgba(201,162,75,.4); } 50% { box-shadow: 0 0 0 2px rgba(227,201,127,1), 0 0 22px rgba(227,201,127,.9); } }
+.joker-glow > :first-child { border-radius: 10px; animation: joker-glow 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .joker-glow > :first-child { animation: none; box-shadow: 0 0 0 2px #c9a24b; } }

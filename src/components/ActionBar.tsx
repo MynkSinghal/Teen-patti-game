@@ -13,17 +13,7 @@ export function ActionBar({ view, send, busy }: { view: ClientView; send: (c: Co
 
   if (game.phase === 'sideshow' && game.pending) {
     if (l.respond) {
-      return (
-        <div className="rounded-xl border border-gold/60 bg-panel p-3" role="alertdialog" aria-label="Sideshow request" data-testid="sideshow-prompt">
-          <p className="text-sm">
-            <b>{name(game.pending.requesterId)}</b> asks for a sideshow. Your hands will be compared privately; the weaker hand packs. <Countdown deadline={game.turnDeadline} />
-          </p>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            <button className="btn btn-gold !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_respond', accept: true })} data-testid="sideshow-accept">Accept</button>
-            <button className="btn btn-ghost !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_respond', accept: false })} data-testid="sideshow-decline">Decline</button>
-          </div>
-        </div>
-      );
+      return <p className="py-3 text-center text-sm font-semibold text-gold-soft" data-testid="waiting">Answer the sideshow request</p>;
     }
     return (
       <p className="py-3 text-center text-sm text-muted" data-testid="waiting">
@@ -61,6 +51,11 @@ export function ActionBar({ view, send, busy }: { view: ClientView; send: (c: Co
         {l.sideshow && (
           <button className="btn btn-ghost !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_request' })} data-testid="btn-sideshow">
             <span className="flex flex-col leading-tight"><span>Sideshow</span><span className="text-xs font-medium opacity-75">pay {l.sideshow.cost}</span></span>
+          </button>
+        )}
+        {!l.sideshow && l.sideshowBlocked && (
+          <button className="btn btn-ghost !min-h-[52px] whitespace-nowrap opacity-60 ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled title={l.sideshowBlocked} data-testid="btn-sideshow-blocked">
+            <span className="flex flex-col leading-tight"><span>Sideshow</span><span className="truncate text-[10px] font-medium">{l.sideshowBlocked}</span></span>
           </button>
         )}
         {l.allIn && (
