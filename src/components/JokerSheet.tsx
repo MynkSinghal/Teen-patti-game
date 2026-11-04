@@ -51,32 +51,28 @@ export function JokerSheet({ view, send, busy }: { view: ClientView; send: (c: C
         Your <b className="text-gold-soft">{cardText(cards[index]!)}</b> is a joker. It <b>already counts as your best possible card</b>, so you never lose by not choosing.
         <br /><span className="text-muted">Picking only decides which card you announce. Everyone sees it if your hand is shown. Only picks that keep your best hand are allowed.</span>
       </p>
-      <button className={`btn mt-3 w-full ${current === null ? 'btn-gold' : 'btn-ghost'}`} disabled={busy} onClick={() => choose(null)} data-testid="joker-auto">
+      <button className={`btn mt-3 w-full !min-h-[38px] ${current === null ? 'btn-gold' : 'btn-ghost'}`} disabled={busy} onClick={() => choose(null)} data-testid="joker-auto">
         Auto (best hand) <span className="ml-2 text-xs opacity-75">→ {preview(null)}</span>
       </button>
-      <div className="mt-3 space-y-1.5" data-testid="joker-grid">
-        {SUITS.map((suit) => (
-          <div key={suit} className="grid grid-cols-13 gap-1" style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}>
-            {RANKS.map((rank) => {
-              const sel = current?.rank === rank && current.suit === suit;
-              const ok = keeps({ rank, suit });
-              const red = suit === 'H' || suit === 'D';
-              return (
-                <button
-                  key={rank}
-                  disabled={busy || !ok}
-                  onClick={() => choose({ rank, suit })}
-                  aria-label={`${rankChar(rank)} of ${suit}`}
-                  className={`aspect-[3/4] rounded-md text-[11px] font-bold leading-none ${sel ? 'bg-gold text-ink ring-2 ring-gold-soft' : 'bg-paper'} ${!sel && red ? 'text-[#b3261e]' : !sel ? 'text-ink' : ''} ${ok ? '' : 'opacity-15'}`}
-                  data-testid={`jk-${rankChar(rank)}${suit}`}
-                >
-                  <span className="block">{rankChar(rank)}</span>
-                  <span className="block text-[10px]">{SUIT_CHAR[suit]}</span>
-                </button>
-              );
-            })}
-          </div>
-        ))}
+      <p className="label mt-3">Cards you can announce</p>
+      <div className="flex flex-wrap gap-1.5" data-testid="joker-grid">
+        {SUITS.flatMap((suit) => RANKS.map((rank) => ({ rank, suit }))).filter((c) => keeps(c)).map(({ rank, suit }) => {
+          const sel = current?.rank === rank && current.suit === suit;
+          const red = suit === 'H' || suit === 'D';
+          return (
+            <button
+              key={`${rank}${suit}`}
+              disabled={busy}
+              onClick={() => choose({ rank, suit })}
+              aria-label={`${rankChar(rank)} of ${suit}`}
+              className={`num grid h-[46px] w-[34px] place-items-center rounded-md text-[17px] leading-none ${sel ? 'ring-2 ring-gold-soft' : ''}`}
+              style={{ background: sel ? 'linear-gradient(#f6e3a2,#d8b45a)' : 'linear-gradient(160deg,#fffaf0,#efe3c6)', color: red ? '#9b1b1b' : '#1c1209' }}
+              data-testid={`jk-${rankChar(rank)}${suit}`}
+            >
+              <span>{rankChar(rank) === 'T' ? '10' : rankChar(rank)}<br /><span className="text-[13px]">{SUIT_CHAR[suit]}</span></span>
+            </button>
+          );
+        })}
       </div>
       <p className="mt-3 text-center text-xs text-muted">Currently: <b className="text-paper">{priv.handLabel}</b></p>
     </Sheet>

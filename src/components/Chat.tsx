@@ -9,34 +9,26 @@ import { useUI } from '@/store/ui';
 import { Avatar } from './Avatar';
 import { Sheet } from './Sheet';
 
-/** Floating bubble on the right edge with an unread badge. */
-export function ChatBubble() {
+/** Chat button in the header, with an unread badge. */
+export function ChatButton() {
   const unread = useUI((s) => s.unread);
   const open = useUI((s) => s.open);
   return (
-    <motion.button
+    <button
       aria-label={unread ? `Open chat, ${unread} unread` : 'Open chat'}
       onClick={() => open('chat')}
-      whileTap={{ scale: 0.92 }}
-      className="fixed right-0 top-[30%] z-30 grid h-12 w-10 place-items-center rounded-l-2xl border border-r-0 border-gold/50 bg-panel/90 pl-1 text-gold shadow-[0_6px_24px_rgba(0,0,0,.5)] backdrop-blur ls:right-[104px] ls:top-[3px] ls:h-10 ls:w-10 ls:rounded-xl ls:border ls:pl-0 ls:bg-panel"
+      className={`medallion-sm relative grid h-8 w-8 place-items-center text-gold-soft ${unread ? 'animate-[pulse_1.6s_ease-in-out_infinite]' : ''}`}
       data-testid="chat-bubble"
     >
-      <MessageCircle size={20} />
+      <MessageCircle size={15} />
       <AnimatePresence>
         {unread > 0 && (
-          <motion.span
-            key={unread}
-            initial={{ scale: 0.4 }}
-            animate={{ scale: 1 }}
-            exit={{ scale: 0 }}
-            className="absolute -left-2 -top-1.5 grid ls:-right-1.5 ls:left-auto min-h-5 min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-bold text-white"
-            data-testid="chat-unread"
-          >
+          <motion.span key={unread} initial={{ scale: 0.4 }} animate={{ scale: 1 }} exit={{ scale: 0 }} className="absolute -right-1.5 -top-1.5 grid min-h-[18px] min-w-[18px] place-items-center rounded-full bg-maroon px-1 text-[10px] font-bold text-gold-soft ring-1 ring-gold" data-testid="chat-unread">
             {unread > 9 ? '9+' : unread}
           </motion.span>
         )}
       </AnimatePresence>
-    </motion.button>
+    </button>
   );
 }
 
@@ -60,7 +52,7 @@ export function ChatBanner() {
           exit={{ y: -80, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 420, damping: 32 }}
           onClick={() => open('chat')}
-          className="fixed inset-x-3 top-3 z-50 mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-gold/50 bg-panel/95 px-3 py-2.5 text-left shadow-[0_10px_40px_rgba(0,0,0,.6)] backdrop-blur"
+          className="mh-panel-strong fixed inset-x-3 top-2 z-50 mx-auto flex max-w-sm items-center gap-3 px-3 py-2 text-left"
           role="status"
           data-testid="chat-banner"
         >
@@ -69,7 +61,7 @@ export function ChatBanner() {
             <span className="block text-xs font-semibold text-gold-soft">{banner.name}</span>
             <span className="block truncate text-sm text-paper">{banner.body}</span>
           </span>
-          <span className="rounded-full bg-gold px-2 py-0.5 text-[10px] font-bold uppercase text-ink">Reply</span>
+          <span className="tag-gold rounded-full px-2 py-0.5 text-[10px] font-bold uppercase">Reply</span>
         </motion.button>
       )}
     </AnimatePresence>
@@ -120,7 +112,7 @@ export function ChatSheet({ code }: { code: string }) {
             return (
               <div key={m.id} className={`flex items-end gap-2 ${mine ? 'flex-row-reverse' : ''}`}>
                 {!mine && <Avatar name={m.name} size={26} />}
-                <div className={`max-w-[78%] rounded-2xl px-3 py-1.5 text-sm ${mine ? 'rounded-br-sm bg-gold text-ink' : 'rounded-bl-sm bg-panel-2 text-paper'}`}>
+                <div className={`max-w-[78%] rounded-2xl px-3 py-1.5 text-sm ${mine ? 'tag-gold rounded-br-sm' : 'rounded-bl-sm bg-[#21170d] text-paper ring-1 ring-line'}`}>
                   {!mine && <p className="text-[10px] font-semibold text-gold-soft">{m.name}</p>}
                   <p className="break-words" data-testid="chat-msg">{m.body}</p>
                 </div>

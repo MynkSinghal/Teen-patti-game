@@ -4,7 +4,6 @@ import { Eye, WifiOff } from 'lucide-react';
 import type { PublicRoomState } from '@/server/view';
 import { Avatar } from './Avatar';
 import { useSecondsLeft } from './Countdown';
-import { PlayingCard } from './PlayingCard';
 
 type GP = NonNullable<PublicRoomState['game']>['players'][number];
 
@@ -22,7 +21,7 @@ interface Props {
   inRound: boolean;
   winner?: boolean;
   left?: boolean;
-  /** Smaller seat for crowded tables (5+ players) and small screens. */
+  /** Smaller seat for crowded tables and short screens. */
   compact?: boolean;
 }
 
@@ -39,80 +38,45 @@ export function describeLast(last: GP['last']): string | null {
   }
 }
 
+/** Medallion + brass plaque + one status tag. Nothing else. */
 export function Seat(p: Props) {
-  if (p.compact) return <CompactSeat {...p} />;
   const folded = !!p.gp?.folded;
   const left = useSecondsLeft(p.isTurn ? p.deadline : null);
   const progress = p.isTurn && left !== null ? left / Math.max(1, p.turnSeconds) : p.isTurn ? 1 : null;
   const last = describeLast(p.gp?.last ?? null);
+  const status = last ?? (p.gp ? (p.gp.seen ? 'Seen' : 'Blind') : p.inRound ? null : 'Sitting out');
+  const size = p.compact ? 34 : 42;
   return (
-    <div className="flex w-[92px] flex-col items-center ls:origin-center ls:scale-[.78]" data-testid={`seat-${p.name}`}>
-      {p.inRound && !p.isMe && !folded && (
-        <div className="-mb-3 flex -space-x-3.5">
-          {[0, 1, 2].map((i) => <PlayingCard key={i} faceDown size="xs" delay={0.07 * i} />)}
-        </div>
-      )}
+    <div className={`flex flex-col items-center ${p.compact ? 'w-[76px]' : 'w-[90px]'}`} data-testid={`seat-${p.name}`}>
       <motion.div
         animate={p.isTurn ? { scale: [1, 1.05, 1] } : { scale: 1 }}
         transition={p.isTurn ? { repeat: Infinity, duration: 1.8 } : undefined}
-        className={`relative ${folded ? 'opacity-45 grayscale' : ''}`}
+        className={`relative ${folded ? 'opacity-50 grayscale' : ''}`}
       >
-        <Avatar name={p.name} size={42} progress={progress} danger={left !== null && left <= 10} crown={p.winner} />
-        {p.isDealer && <span className="absolute -right-1 bottom-0 grid h-5 w-5 place-items-center rounded-full bg-paper text-[10px] font-extrabold text-ink shadow" title="Dealer" data-testid="dealer-chip">D</span>}
-        {p.gp?.allIn && !folded && <span className="absolute -top-1 -left-2 rounded-full bg-danger px-1.5 py-[1px] text-[9px] font-extrabold tracking-wide text-white shadow" data-testid="allin-chip">ALL-IN</span>}
-        {p.gp?.seen && !folded && <span className="absolute -left-1 bottom-0 grid h-5 w-5 place-items-center rounded-full bg-panel text-gold-soft ring-1 ring-gold/50"><Eye size={11} /></span>}
+        <Avatar name={p.name} size={size} progress={progress} danger={left !== null && left <= 10} crown={p.winner} />
+        {p.isDealer && <span className="absolute right-0 bottom-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-paper text-[9px] font-extrabold text-[#2a1a08] shadow ring-[1.5px] ring-gold" title="Dealer" data-testid="dealer-chip">D</span>}
+        {p.gp?.seen && !folded && <span className="absolute left-0 bottom-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-[#1a1209] text-gold-soft ring-[1.5px] ring-gold"><Eye size={10} /></span>}
+        {p.gp?.allIn && !folded && <span className="absolute -top-1 left-1/2 -translate-x-1/2 rounded-full bg-maroon px-1.5 text-[8.5px] font-extrabold tracking-wider text-gold-soft ring-1 ring-gold" data-testid="allin-chip">ALL-IN</span>}
       </motion.div>
-      <div className={`-mt-0.5 w-full rounded-lg bg-panel/95 px-1.5 py-1 text-center ring-1 ${p.isTurn ? 'ring-gold' : 'ring-line'} ${p.winner ? 'ring-2 !ring-gold-soft' : ''}`}>
-        <div className="flex items-center justify-center gap-1 text-[12px] font-semibold leading-tight">
-          <span className="max-w-[64px] truncate">{p.isMe ? 'You' : p.name}</span>
-          {!p.connected && <WifiOff size={10} className="text-danger" aria-label="Disconnected" />}
+      <div className={`plaque -mt-1 w-full px-1 py-[3px] text-center ${folded ? 'opacity-60' : ''} ${p.isTurn ? '!shadow-[inset_0_0_0_1.5px_#f3dc95,0_0_12px_rgba(243,220,149,.35)]' : ''} ${p.winner ? '!shadow-[inset_0_0_0_2px_#f3dc95]' : ''}`}>
+        <div className="flex items-center justify-center gap-1">
+          <span className={`font-display truncate font-semibold text-paper ${p.compact ? 'max-w-[58px] text-[9.5px]' : 'max-w-[70px] text-[10.5px]'}`}>{p.isMe ? 'You' : p.name}</span>
+          {!p.connected && <WifiOff size={9} className="text-danger" aria-label="Disconnected" />}
         </div>
-        <div className="text-[12px] tabular-nums text-gold-soft" data-testid="balance">{p.balance.toLocaleString()}</div>
-        {p.gp && <div className="text-[10px] leading-tight text-muted" data-testid="committed">in {p.gp.committed.toLocaleString()}</div>}
+        <div className={`num leading-none text-gold-soft ${p.compact ? 'text-[13px]' : 'text-[15px]'}`} data-testid="balance">{p.balance.toLocaleString()}</div>
       </div>
-      <div className="mt-0.5 h-[18px]">
-        {last && (
+      <div className="mt-[3px] h-[15px]">
+        {status && (
           <motion.span
-            key={last}
-            initial={{ opacity: 0, y: -4, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            className={`inline-block rounded-full px-2 py-[1px] text-[10px] font-semibold ${folded ? 'bg-panel-2 text-muted' : 'bg-gold/90 text-ink'}`}
-            data-testid="last-action"
+            key={status}
+            initial={{ opacity: 0, y: -3 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`inline-block max-w-[88px] truncate rounded-full px-2 py-[1px] text-[9px] font-bold uppercase tracking-wide ${folded ? 'bg-[#2a2218] text-[#8f8166]' : last ? 'tag-gold' : 'bg-[#1a1209] text-muted ring-1 ring-line'}`}
+            data-testid={last ? 'last-action' : 'seat-status'}
           >
-            {last}
+            {status}
           </motion.span>
         )}
-        {!last && !p.inRound && <span className="text-[10px] uppercase tracking-wider text-muted">{p.left ? 'Left' : 'Sitting out'}</span>}
-      </div>
-    </div>
-  );
-}
-
-/** Avatar + one tight pill (name / chips) + a tiny status chip. Built to fit 8 around a small table. */
-function CompactSeat(p: Props) {
-  const folded = !!p.gp?.folded;
-  const left = useSecondsLeft(p.isTurn ? p.deadline : null);
-  const progress = p.isTurn && left !== null ? left / Math.max(1, p.turnSeconds) : p.isTurn ? 1 : null;
-  const last = describeLast(p.gp?.last ?? null);
-  return (
-    <div className="flex w-[74px] flex-col items-center" data-testid={`seat-${p.name}`}>
-      <div className={`relative ${folded ? 'opacity-45 grayscale' : ''}`}>
-        <Avatar name={p.name} size={30} progress={progress} danger={left !== null && left <= 10} crown={p.winner} />
-        {p.isDealer && <span className="absolute -right-1.5 bottom-0 grid h-4 w-4 place-items-center rounded-full bg-paper text-[9px] font-extrabold text-ink shadow" data-testid="dealer-chip">D</span>}
-        {p.gp?.seen && !folded && <span className="absolute -left-1.5 bottom-0 grid h-4 w-4 place-items-center rounded-full bg-panel text-gold-soft ring-1 ring-gold/50"><Eye size={9} /></span>}
-        {p.gp?.allIn && !folded && <span className="absolute -top-1 -left-3 rounded-full bg-danger px-1 text-[8px] font-extrabold text-white" data-testid="allin-chip">ALL-IN</span>}
-      </div>
-      <div className={`-mt-0.5 w-full rounded-md bg-panel/95 px-1 py-0.5 text-center leading-none ring-1 ${p.isTurn ? 'ring-gold' : 'ring-line'} ${p.winner ? '!ring-2 !ring-gold-soft' : ''} ${folded ? 'opacity-60' : ''}`}>
-        <div className="flex items-center justify-center gap-0.5 text-[10.5px] font-semibold">
-          <span className="max-w-[56px] truncate">{p.isMe ? 'You' : p.name}</span>
-          {!p.connected && <WifiOff size={8} className="text-danger" aria-label="Disconnected" />}
-        </div>
-        <div className="mt-0.5 text-[10.5px] tabular-nums text-gold-soft" data-testid="balance">{p.balance.toLocaleString()}</div>
-        {p.gp && <div className="mt-0.5 text-[8.5px] text-muted" data-testid="committed">in {p.gp.committed.toLocaleString()}</div>}
-      </div>
-      <div className="mt-0.5 h-3.5">
-        {last ? <span key={last} className={`inline-block max-w-[74px] truncate rounded-full px-1.5 text-[9px] font-semibold ${folded ? 'bg-panel-2 text-muted' : 'bg-gold/90 text-ink'}`} data-testid="last-action">{last}</span>
-          : !p.inRound ? <span className="text-[8.5px] uppercase tracking-wider text-muted">{p.left ? 'Left' : 'Out'}</span> : null}
       </div>
     </div>
   );

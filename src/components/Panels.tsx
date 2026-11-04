@@ -14,6 +14,9 @@ import { jokerNote } from '@/lib/cards-ui';
 import { Avatar } from './Avatar';
 import { Sheet } from './Sheet';
 import { useInvite } from './Lobby';
+import { SettingsForm } from './SettingsForm';
+import type { RoomSettings } from '@/lib/settings';
+import { UserX } from 'lucide-react';
 
 export function describeEvent(e: PublicEvent, name: (id?: string) => string): { icon: string; text: string } | null {
   const who = name(e.playerId);
@@ -155,7 +158,8 @@ export function MenuSheet({ view, code, send }: { view: ClientView; code: string
     <Sheet open={ui.sheet === 'menu'} onClose={ui.close} title="Menu" testId="menu-sheet">
       <div className="space-y-2">
         <button className="btn btn-ghost w-full" onClick={invite.copy}>{invite.copied ? 'Copied!' : 'Copy invitation link'}</button>
-        <button className="btn btn-ghost w-full" onClick={() => ui.open('feed')}>Activity & past rounds</button>
+        <button className="btn btn-ghost w-full" onClick={() => ui.open('feed')}>Activity & standings</button>
+        {me.isHost && <button className="btn btn-ghost w-full" onClick={() => ui.open('settings')} data-testid="menu-settings">Table rules & players</button>}
         <button className="btn btn-ghost w-full" onClick={() => ui.open('rules', room.game?.variation ?? 'classic')}>Game rules</button>
         <Link className="btn btn-ghost flex w-full items-center justify-center text-sm" href="/privacy" target="_blank">Privacy</Link>
       </div>
@@ -226,6 +230,42 @@ export function LeaveSheet({ view, send }: { view: ClientView; send: (c: Command
           </button>
         </div>
       </div>
+    </Sheet>
+  );
+}
+
+/** Host-only: table rules and removing players, in a sheet instead of cluttering the lobby. */
+export function SettingsSheet({ view, send, busy }: { view: ClientView; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
+  const sheet = useUI((s) => s.sheet);
+  const close = useUI((s) => s.close);
+  const { room, me } = view;
+  const [draft, setDraft] = useState<RoomSettings>(room.settings);
+  useEffect(() => { if (sheet === 'settings') setDraft(room.settings); }, [sheet, room.settings]);
+  const locked = room.status === 'playing';
+  return (
+    <Sheet open={sheet === 'settings'} onClose={close} title="Table rules" testId="settings-sheet">
+      {!me.isHost ? (
+        <p className="text-sm text-muted">Only the host can change the table rules.</p>
+      ) : (
+        <div className="space-y-4">
+          {locked && <p className="rounded-lg bg-[#120c06] px-3 py-2 text-[12px] text-gold-soft ring-1 ring-line">A round is in progress. Changes are possible between rounds.</p>}
+          <SettingsForm value={draft} onChange={setDraft} startingChipsLocked={room.round > 0} />
+          <button className="btn btn-gold w-full" disabled={busy || locked} onClick={async () => { if (await send({ type: 'update_settings', settings: draft })) close(); }} data-testid="save-settings">Save rules</button>
+          <div>
+            <p className="label">Players</p>
+            <ul className="divide-y divide-line">
+              {room.players.map((p) => (
+                <li key={p.id} className="flex items-center gap-3 py-1.5">
+                  <Avatar name={p.name} size={26} />
+                  <span className="flex-1 truncate text-sm">{p.name}{p.isHost ? ' 👑' : ''}</span>
+                  {!p.isHost && <button aria-label={`Remove ${p.name}`} className="text-muted hover:text-danger disabled:opacity-40" disabled={busy || locked} onClick={() => send({ type: 'kick', playerId: p.id })}><UserX size={16} /></button>}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <button className="btn btn-danger w-full" disabled={busy} onClick={() => confirm('Close this room for everyone?') && send({ type: 'close_room' })} data-testid="close-room">Close room for everyone</button>
+        </div>
+      )}
     </Sheet>
   );
 }

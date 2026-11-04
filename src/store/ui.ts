@@ -4,7 +4,7 @@ import { loadSoundPrefs, setMuted as persistMuted, setVolume as persistVolume } 
 import type { ChatMessage } from '@/server/service';
 
 export type Theme = 'classic' | 'midnight' | 'burgundy' | 'noir';
-export type Sheet = null | 'menu' | 'rules' | 'feed' | 'pot' | 'chat' | 'leave' | 'joker';
+export type Sheet = null | 'menu' | 'rules' | 'feed' | 'pot' | 'chat' | 'leave' | 'joker' | 'settings';
 
 interface UIStore {
   muted: boolean;

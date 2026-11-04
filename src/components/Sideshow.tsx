@@ -175,7 +175,7 @@ export function TableBanner({ view }: { view: ClientView }) {
   }, [g, view]);
   return (
     <AnimatePresence>
-      {msg && (
+      {msg && g?.phase !== 'ended' && (
         <motion.div key={msg} className="fixed inset-x-0 top-14 z-30 mx-auto w-fit max-w-[92%] rounded-full border border-gold/40 bg-panel/95 px-4 py-2 text-center text-sm shadow-xl" initial={{ y: -16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ opacity: 0 }} role="status" data-testid="table-banner">
           {msg}
         </motion.div>

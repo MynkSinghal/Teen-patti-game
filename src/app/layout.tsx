@@ -1,4 +1,8 @@
 import type { Metadata, Viewport } from 'next';
+import '@fontsource/cinzel/600.css';
+import '@fontsource/cinzel/800.css';
+import '@fontsource/cormorant-garamond/600.css';
+import '@fontsource/cormorant-garamond/700.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -10,7 +14,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#0a0d0c',
+  themeColor: '#0b0805',
   viewportFit: 'cover',
 };
 

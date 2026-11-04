@@ -7,40 +7,35 @@ function hash(s: string) {
   return h >>> 0;
 }
 
-/** Deterministic avatar (emoji + hue) from a name, with an optional countdown ring. */
+/** Deterministic avatar (emoji) in a gold medallion, with an optional countdown ring. */
 export function Avatar({ name, size = 44, progress, danger, crown }: { name: string; size?: number; progress?: number | null; danger?: boolean; crown?: boolean }) {
   const h = hash(name);
-  const hue = h % 360;
-  const r = size / 2 + 3;
+  const r = size / 2 + 5;
   const c = 2 * Math.PI * r;
-  const box = size + 8;
+  const box = size + 14;
   return (
     <div className="relative grid place-items-center" style={{ width: box, height: box }}>
       {progress !== undefined && progress !== null && (
         <svg width={box} height={box} className="absolute inset-0 -rotate-90" aria-hidden>
-          <circle cx={box / 2} cy={box / 2} r={r} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="3" />
+          <circle cx={box / 2} cy={box / 2} r={r} fill="none" stroke="rgba(0,0,0,.45)" strokeWidth="3" />
           <circle
             cx={box / 2}
             cy={box / 2}
             r={r}
             fill="none"
-            stroke={danger ? '#e0584b' : '#c9a24b'}
+            stroke={danger ? '#e0584b' : '#f3dc95'}
             strokeWidth="3"
             strokeLinecap="round"
             strokeDasharray={c}
             strokeDashoffset={c * (1 - Math.max(0, Math.min(1, progress)))}
-            style={{ transition: 'stroke-dashoffset .3s linear, stroke .3s' }}
+            style={{ transition: 'stroke-dashoffset .3s linear, stroke .3s', filter: 'drop-shadow(0 0 4px rgba(243,220,149,.6))' }}
           />
         </svg>
       )}
-      <div
-        className="grid place-items-center rounded-full text-[0px] shadow-inner"
-        style={{ width: size, height: size, background: `radial-gradient(circle at 30% 25%, hsl(${hue} 55% 38%), hsl(${(hue + 40) % 360} 60% 16%))`, boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,.12)' }}
-        aria-hidden
-      >
-        <span style={{ fontSize: size * 0.52, lineHeight: 1 }}>{EMOJI[h % EMOJI.length]}</span>
+      <div className="medallion grid place-items-center" style={{ width: size, height: size }} aria-hidden>
+        <span style={{ fontSize: size * 0.5, lineHeight: 1 }}>{EMOJI[h % EMOJI.length]}</span>
       </div>
-      {crown && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[13px] drop-shadow">👑</span>}
+      {crown && <span className="absolute -top-1.5 left-1/2 -translate-x-1/2 text-[14px] drop-shadow">👑</span>}
     </div>
   );
 }

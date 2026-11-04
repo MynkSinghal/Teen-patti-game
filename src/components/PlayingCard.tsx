@@ -20,8 +20,8 @@ interface Props {
   dim?: boolean;
 }
 
-const DIM = { xs: 'w-5 h-7 rounded-[3px]', sm: 'w-9 h-[52px] rounded-md', md: 'w-[58px] h-[84px] rounded-lg', lg: 'w-[76px] h-[110px] rounded-lg ls:w-[58px] ls:h-[84px] short:w-[50px] short:h-[72px]' };
-const TXT = { xs: 'text-[0px]', sm: 'text-[13px]', md: 'text-lg', lg: 'text-2xl' };
+const DIM = { xs: 'w-4 h-[22px] rounded-[3px]', sm: 'w-10 h-[56px] rounded-md', md: 'w-[58px] h-[84px] rounded-lg', lg: 'w-[72px] h-[104px] rounded-lg ls:w-[64px] ls:h-[92px] short:w-[56px] short:h-[80px]' };
+const TXT = { xs: 'text-[0px]', sm: 'text-[16px]', md: 'text-[22px]', lg: 'text-[26px] short:text-[22px]' };
 
 export function PlayingCard({ card, faceDown, size = 'md', delay = 0, joker, dim }: Props) {
   const reduce = useReducedMotion();
@@ -44,21 +44,24 @@ export function PlayingCard({ card, faceDown, size = 'md', delay = 0, joker, dim
         style={{ transformStyle: 'preserve-3d' }}
       >
         <div
-          className={`absolute inset-0 ${DIM[size]} bg-paper text-ink shadow-md ring-1 ring-black/20 flex flex-col items-center justify-center ${joker ? 'ring-2 ring-gold' : ''}`}
-          style={{ backfaceVisibility: 'hidden' }}
+          className={`absolute inset-0 ${DIM[size]} flex flex-col items-center justify-center text-[#1c1209] ${joker ? 'ring-2 ring-gold' : ''}`}
+          style={{ backfaceVisibility: 'hidden', background: 'linear-gradient(160deg,#fffaf0,#efe3c6)', boxShadow: '0 0 0 1px #c9b27a, 0 6px 14px rgba(0,0,0,.55)' }}
         >
           {card && suit && (
             <>
-              <span className={`absolute left-1 top-0.5 font-bold leading-none ${TXT[size]} ${suit.red ? 'text-[#b3261e]' : 'text-ink'}`}>{rankChar(card.rank)}</span>
-              <span className={`${size === 'sm' ? 'text-lg' : size === 'md' ? 'text-3xl' : 'text-4xl'} ${suit.red ? 'text-[#b3261e]' : 'text-ink'}`}>{suit.ch}</span>
-              {joker && <span className="absolute bottom-0.5 text-[8px] font-bold tracking-wider text-gold">JOKER</span>}
+              <span className={`num absolute left-[5px] top-0 leading-none ${TXT[size]} ${suit.red ? 'text-[#9b1b1b]' : 'text-[#1c1209]'}`}>{rankChar(card.rank) === 'T' ? '10' : rankChar(card.rank)}</span>
+              <span className={`absolute ${size === 'sm' ? 'left-[6px] top-[18px] text-[10px]' : 'left-[7px] top-[24px] text-[12px] short:top-[21px]'} ${suit.red ? 'text-[#9b1b1b]' : 'text-[#1c1209]'}`}>{suit.ch}</span>
+              <span className={`absolute right-[5px] bottom-[2px] ${size === 'sm' ? 'text-xl' : size === 'md' ? 'text-3xl' : 'text-[34px] short:text-[28px]'} ${suit.red ? 'text-[#9b1b1b]' : 'text-[#1c1209]'}`}>{suit.ch}</span>
+              {joker && <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded-sm bg-[#6d1222] px-1 text-[7.5px] font-bold tracking-widest text-[#f3dc95]">JOKER</span>}
             </>
           )}
         </div>
         <div
-          className={`absolute inset-0 ${DIM[size]} card-back shadow-md ring-1 ring-gold/50`}
-          style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
-        />
+          className={`absolute inset-0 ${DIM[size]} card-back`}
+          style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', boxShadow: '0 0 0 1px #d8b45a, 0 4px 10px rgba(0,0,0,.6)' }}
+        >
+          {size !== 'xs' && <span className="absolute inset-[3px] rounded-[4px] border border-[rgba(243,220,149,.7)]" />}
+        </div>
       </motion.div>
     </motion.div>
   );

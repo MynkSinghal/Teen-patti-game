@@ -1,26 +1,29 @@
 'use client';
-import { motion } from 'motion/react';
-import { Crown, Eye, Trophy } from 'lucide-react';
-import { useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { ChevronUp, Eye, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { CommandInput } from '@/hooks/useRoom';
-import type { ClientView } from '@/server/view';
 import { jokerNote } from '@/lib/cards-ui';
-import { Avatar } from './Avatar';
+import type { ClientView } from '@/server/view';
 import { Confetti } from './Confetti';
 import { PlayingCard } from './PlayingCard';
 import { RoundStarter } from './RoundStarter';
 
-const SHARE: Record<string, string> = { high: 'High hand', low: 'Low hand' };
+const SHARE: Record<string, string> = { high: 'high', low: 'low' };
 
+/** Centred Victory panel over the table. Everything on one screen; the dealer opens the game picker from here. */
 export function RoundEnd({ view, send, busy }: { view: ClientView; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
   const { room, me } = view;
   const game = room.game;
-  if (!game || game.phase !== 'ended' || !game.result) return null;
+  const ended = !!game && game.phase === 'ended' && !!game.result;
+  const [open, setOpen] = useState(true);
+  const [picker, setPicker] = useState(false);
+  useEffect(() => { setOpen(true); setPicker(false); }, [game?.round]);
+  if (!ended || !game?.result) return null;
   const r = game.result;
   const gp = (id: string) => game.players.find((p) => p.id === id);
   const name = (id: string) => (id === me.playerId ? 'You' : room.players.find((p) => p.id === id)?.name ?? gp(id)?.name ?? 'Player');
   const meP = room.players.find((p) => p.id === me.playerId);
-  const broke = !!meP && meP.balance < room.settings.boot;
   const myPayout = r.payouts.filter((p) => p.playerId === me.playerId).reduce((s, p) => s + p.amount, 0);
   const myIn = gp(me.playerId)?.committed ?? 0;
   const iWon = myPayout > 0;
@@ -28,144 +31,89 @@ export function RoundEnd({ view, send, busy }: { view: ClientView; send: (c: Com
   const winnerIds = [...new Set(r.payouts.map((p) => p.playerId))];
   const multi = winnerIds.length > 1;
   const revealed = new Map(r.reveal.map((x) => [x.playerId, x]));
-  // Everyone who did not pack: show their cards if revealed, otherwise a face-down hand.
   const standing = game.players.filter((p) => !p.folded);
   const canReveal = r.reason === 'last_standing' && winnerIds.includes(me.playerId) && !revealed.has(me.playerId);
-  const sessionProfit = (id: string) => {
-    const v = room.players.find((x) => x.id === id)?.profit;
-    return v === undefined ? '' : `${v > 0 ? '+' : ''}${v}`;
-  };
-  const nets = game.players
-    .map((p) => ({ p, net: r.payouts.filter((x) => x.playerId === p.id).reduce((s, x) => s + x.amount, 0) - p.committed }))
-    .sort((a, b) => b.net - a.net);
+  const nets = game.players.map((p) => ({ p, n: r.payouts.filter((x) => x.playerId === p.id).reduce((s, x) => s + x.amount, 0) - p.committed })).sort((a, b) => b.n - a.n);
+  const dealer = room.players.find((p) => p.id === room.nextDealerId);
+  const iDeal = dealer?.id === me.playerId || (me.isHost && room.settings.variationChooser === 'host') || (me.isHost && room.settings.variation !== 'dealers_choice');
+  const low = !!meP && meP.balance < room.settings.startingChips && meP.balance < room.settings.boot * 3;
+  const rebuysLeft = meP ? room.settings.maxRebuys - meP.rebuys : 0;
+  const title = iWon ? (multi ? 'Shared win' : 'Victory') : multi ? 'Pot shared' : 'Round over';
+  const reasonText = r.reason === 'show' ? 'Decided by a show' : r.reason === 'showdown' ? 'All-in showdown' : 'Everyone else packed';
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 rounded-2xl border border-gold/50 bg-panel p-4" data-testid="round-result">
-      {iWon && <Confetti />}
-      <div className="text-center">
-        <Trophy className="mx-auto text-gold" size={24} />
-        <p className="mt-1 font-display text-2xl text-gold-soft" data-testid="winner-text">
-          {multi ? 'Pot shared' : `${name(winnerIds[0]!)} won ${r.payouts[0]!.amount}`}
-        </p>
-        <p className="text-xs text-muted">{r.reason === 'show' ? 'Decided by a show' : r.reason === 'showdown' ? 'All-in showdown' : 'Everyone else packed'} · pot {r.pot}</p>
-        <p className={`mt-1 text-sm font-semibold ${net >= 0 ? 'text-gold-soft' : 'text-danger'}`} data-testid="my-net">
-          {myIn > 0 ? (iWon ? `You won ${myPayout} (net ${net >= 0 ? '+' : ''}${net})` : `You lost ${myIn}`) : ''}
-        </p>
-      </div>
+    <>
+      {iWon && open && <Confetti />}
+      <AnimatePresence>
+        {open && (
+          <motion.div className="fixed inset-0 z-30 grid place-items-center bg-black/70 p-2 backdrop-blur-[1px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div initial={{ scale: 0.94, y: 12 }} animate={{ scale: 1, y: 0 }} className="mh-panel-strong relative w-full max-w-[560px] px-5 py-3.5" data-testid="round-result">
+              <button aria-label="View the table" className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-full text-muted ring-1 ring-line" onClick={() => setOpen(false)}><X size={14} /></button>
+              <h2 className="text-center font-display text-[28px] font-extrabold uppercase leading-none tracking-[0.28em]" style={{ background: 'linear-gradient(#fff4c6,#d8b45a 55%,#8f6d22)', WebkitBackgroundClip: 'text', color: 'transparent' }}>{title}</h2>
+              <p className="caps mt-1 text-center text-[9.5px] text-[#cdb87a]" data-testid="winner-text">
+                {multi ? r.payouts.map((p) => `${name(p.playerId)} +${p.amount}${p.share && SHARE[p.share] ? ` (${SHARE[p.share]})` : ''}`).join(' · ') : `${name(winnerIds[0]!)} won ${r.payouts[0]!.amount}`} · {reasonText}
+              </p>
 
-      {r.pots && r.pots.length > 1 && (
-        <ul className="space-y-1 rounded-xl bg-panel-2 p-2 text-xs" data-testid="pots">
-          {r.pots.map((pt, i) => (
-            <li key={i} className="flex items-center justify-between gap-2">
-              <span className="text-muted">{i === 0 ? 'Main pot' : `Side pot ${i}`} · {pt.amount}</span>
-              <span className="truncate text-right text-gold-soft">{pt.winners.map((id) => name(id)).join(', ')}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <ul className="space-y-1.5" data-testid="winners">
-        {r.payouts.map((p, i) => {
-          const rev = revealed.get(p.playerId);
-          return (
-            <li key={i} className="flex items-center gap-3 rounded-xl bg-gold/10 px-3 py-2 ring-1 ring-gold/40">
-              <Avatar name={name(p.playerId)} size={34} crown />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{name(p.playerId)}{multi && <span className="ml-1 text-xs text-gold-soft">{p.share && SHARE[p.share] ? `· ${SHARE[p.share]}` : '· tie'}</span>}</p>
-                {rev && <p className="text-[11px] text-paper/70">{rev.label}</p>}
+              <div className="mt-2.5 flex justify-center gap-2.5 overflow-x-auto pb-1" data-testid="end-hands">
+                {standing.map((p) => {
+                  const rev = revealed.get(p.id);
+                  const own = p.id === me.playerId ? me.private?.cards ?? null : null;
+                  const win = winnerIds.includes(p.id);
+                  return (
+                    <div key={p.id} className={`shrink-0 rounded-lg px-2.5 py-1.5 text-center ${win ? 'bg-[rgba(216,180,90,.12)] shadow-[inset_0_0_0_1px_#d8b45a]' : 'bg-[#120c06] shadow-[inset_0_0_0_1px_#3a2c18]'}`}>
+                      <p className="font-display text-[10.5px] font-semibold">{win && '👑 '}{name(p.id)}</p>
+                      <div className="mt-1 flex justify-center gap-1">{[0, 1, 2].map((i) => <PlayingCard key={i} card={rev?.cards[i] ?? (own ? own[i] : null)} faceDown={!rev && !own} size="sm" delay={i * 0.1} />)}</div>
+                      <p className={`num mt-0.5 text-[14px] leading-tight ${win ? 'text-gold-soft' : 'text-[#cdb87a]'}`}>{rev ? rev.label : own ? 'Your hand (private)' : 'Not shown'}</p>
+                      {rev && jokerNote(rev.jokerAs) && <p className="text-[9.5px] text-gold-soft" data-testid="end-joker-note">{jokerNote(rev.jokerAs)}</p>}
+                    </div>
+                  );
+                })}
               </div>
-              <span className="font-display text-xl text-gold-soft tabular-nums">+{p.amount}</span>
-            </li>
-          );
-        })}
-      </ul>
+              {r.pots && r.pots.length > 1 && (
+                <p className="mt-1 text-center text-[10.5px] text-[#cdb87a]" data-testid="pots">
+                  {r.pots.map((pt, i) => `${i === 0 ? 'Main pot' : `Side pot ${i}`} ${pt.amount} → ${pt.winners.map(name).join(', ')}`).join(' · ')}
+                </p>
+              )}
 
-      <div>
-        <p className="label">Hands at the end</p>
-        <ul className="space-y-2" data-testid="end-hands">
-          {standing.map((p) => {
-            const rev = revealed.get(p.id);
-            const isWinner = winnerIds.includes(p.id);
-            const isMe = p.id === me.playerId;
-            const own = isMe ? me.private?.cards ?? null : null;
-            return (
-              <li key={p.id} className={`flex items-center gap-2 rounded-xl px-2 py-1.5 ${isWinner ? 'bg-gold/10' : 'bg-panel-2'}`}>
-                <span className="flex w-[74px] items-center gap-1 text-xs"><Crown size={12} className={isWinner ? 'text-gold' : 'invisible'} /><span className="truncate">{name(p.id)}</span></span>
-                <span className="flex gap-0.5">
-                  {[0, 1, 2].map((i) => <PlayingCard key={i} card={rev?.cards[i] ?? (own ? own[i] : null)} faceDown={!rev && !own} size="sm" delay={i * 0.12} />)}
-                </span>
-                <span className="min-w-0 flex-1 text-right text-[11px] text-paper/80">
-                  {rev ? rev.label : own ? 'Your hand (private)' : 'Not shown'}
-                  {rev && jokerNote(rev.jokerAs) && <span className="block text-gold-soft" data-testid="end-joker-note">{jokerNote(rev.jokerAs)}</span>}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-        {game.players.some((p) => p.folded) && <p className="mt-1 text-[11px] text-muted">Packed hands stay private.</p>}
-        {canReveal && (
-          <button className="btn btn-ghost mt-2 flex w-full items-center justify-center gap-2" disabled={busy} onClick={() => send({ type: 'reveal' })} data-testid="reveal-btn">
-            <Eye size={16} /> Show my cards to the table
-          </button>
+              <div className="mt-2.5 flex items-center gap-3">
+                <div className="shrink-0 text-center" data-testid="my-net">
+                  <p className={`num text-[30px] leading-none ${net >= 0 ? 'text-gold-soft' : 'text-danger'}`}>{myIn > 0 ? `${net >= 0 ? '+' : ''}${net}` : '·'}</p>
+                  <p className="caps text-[8px] text-muted">{myIn > 0 ? (iWon ? `You won ${myPayout}` : `You lost ${myIn}`) : 'Watching'}</p>
+                </div>
+                <div className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-0.5 text-[10.5px]" data-testid="scoreboard">
+                  {nets.map(({ p, n }) => (
+                    <span key={p.id} className={p.folded ? 'text-muted' : ''}>{name(p.id)}{p.folded ? ' · packed' : ''}{p.allIn ? ' · all-in' : ''} <b className={n > 0 ? 'text-gold-soft' : n < 0 ? 'text-danger' : 'text-muted'}>{n > 0 ? '+' : ''}{n}</b></span>
+                  ))}
+                </div>
+                <div className="flex w-[170px] shrink-0 flex-col gap-1.5">
+                  {canReveal && <button className="btn btn-ghost !min-h-[34px] text-[11px] inline-flex items-center justify-center gap-1" disabled={busy} onClick={() => send({ type: 'reveal' })} data-testid="reveal-btn"><Eye size={13} /> Show my cards</button>}
+                  {low && (rebuysLeft > 0
+                    ? <button className="btn btn-ghost !min-h-[34px] text-[11px]" disabled={busy} onClick={() => send({ type: 'rebuy' })} data-testid="rebuy">Top up ({rebuysLeft} left)</button>
+                    : <p className="text-center text-[10px] text-muted" data-testid="no-rebuys">No top-ups left</p>)}
+                  {iDeal ? (
+                    <button className="btn btn-gold !min-h-[40px] text-[12.5px]" onClick={() => setPicker(true)} data-testid="choose-game">Pick next game</button>
+                  ) : (
+                    <p className="text-center text-[10.5px] leading-snug text-muted" data-testid="waiting-dealer">{dealer ? <>Waiting for <b className="text-paper">{dealer.name}</b> to pick the next game</> : 'Waiting for the next round'}</p>
+                  )}
+                  {!iDeal && me.isHost && <button className="text-[10px] text-gold underline" onClick={() => setPicker(true)}>Host: pick for them</button>}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
-      </div>
-
-      <div>
-        <p className="label">Round result</p>
-        <ul className="divide-y divide-line text-sm" data-testid="scoreboard">
-          {nets.map(({ p, net: n }) => (
-            <li key={p.id} className="flex items-center justify-between py-1">
-              <span className={p.folded ? 'text-muted' : ''}>{name(p.id)}{p.folded && ' · packed'}{p.allIn && ' · all-in'}</span>
-              <span className="flex items-baseline gap-3">
-                <span className={`tabular-nums ${n > 0 ? 'text-gold-soft' : n < 0 ? 'text-danger' : 'text-muted'}`}>{n > 0 ? '+' : ''}{n}</span>
-                <span className="w-16 text-right text-[11px] text-muted" title="Net result over the whole session">total {sessionProfit(p.id)}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {meP && meP.balance < room.settings.startingChips && (broke || meP.balance < room.settings.startingChips / 2) && <TopUp room={room} me={meP} send={send} busy={busy} />}
-      <RoundStarter view={view} send={send} busy={busy} startLabel="Deal next round" />
-      {room.nextRoundAt && <p className="text-center text-xs text-muted">The next round starts automatically soon.</p>}
-    </motion.div>
-  );
-}
-
-function TopUp({ room, me, send, busy }: { room: ClientView['room']; me: ClientView['room']['players'][number]; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
-  const left = room.settings.maxRebuys - me.rebuys;
-  if (left <= 0) {
-    return <p className="rounded-xl bg-panel-2 p-2 text-center text-xs text-muted" data-testid="no-rebuys">No top-ups left{room.settings.maxRebuys === 0 ? ' (turned off at this table)' : ''}. You have {me.balance.toLocaleString()} chips.</p>;
-  }
-  return (
-    <button className="btn btn-ghost w-full" disabled={busy} onClick={() => send({ type: 'rebuy' })} data-testid="rebuy">
-      Top up to {room.settings.startingChips.toLocaleString()} · {left} left <span className="opacity-70">(counts against your profit)</span>
-    </button>
-  );
-}
-
-export function SideshowNote({ view }: { view: ClientView }) {
-  const notes = view.me.private?.notes ?? [];
-  const last = notes.at(-1);
-  const key = `${view.room.round}-${notes.length}`;
-  const [dismissed, setDismissed] = useState<string | null>(null);
-  if (!last || dismissed === key) return null;
-  const other = view.room.players.find((p) => p.id === last.otherId)?.name ?? 'opponent';
-  return (
-    <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="rounded-xl border border-line bg-panel-2 p-3 text-center" data-testid="sideshow-result">
-      <p className="text-sm">
-        Sideshow vs <b>{other}</b>: you <b className={last.outcome === 'lost' ? 'text-danger' : 'text-gold-soft'}>{last.outcome === 'tied' ? 'tied' : last.outcome}</b>
-      </p>
-      <div className="mt-2 flex items-center justify-center gap-4">
-        <div>
-          <div className="flex gap-0.5">{last.yourCards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}</div>
-          <span className="block text-[10px] text-muted">You: {last.yourLabel}{jokerNote(last.yourJokerAs) ? ` · ${jokerNote(last.yourJokerAs)}` : ''}</span>
-        </div>
-        <div>
-          <div className="flex gap-0.5">{last.otherCards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}</div>
-          <span className="block text-[10px] text-muted">{other}: {last.otherLabel}{jokerNote(last.otherJokerAs) ? ` · ${jokerNote(last.otherJokerAs)}` : ''}</span>
-        </div>
-      </div>
-      <button className="mt-2 text-xs text-gold underline" onClick={() => setDismissed(key)}>Dismiss</button>
-    </motion.div>
+      </AnimatePresence>
+      {!open && (
+        <button className="btn btn-gold fixed bottom-3 left-1/2 z-30 inline-flex -translate-x-1/2 items-center gap-1 !min-h-[34px] text-[11px]" onClick={() => setOpen(true)} data-testid="reopen-result"><ChevronUp size={14} /> Round result</button>
+      )}
+      <AnimatePresence>
+        {picker && (
+          <motion.div className="fixed inset-0 z-40 grid place-items-center bg-black/75 p-2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setPicker(false)}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className="mh-panel-strong w-full max-w-[560px] p-4" onClick={(e) => e.stopPropagation()} data-testid="game-picker">
+              <RoundStarter view={view} send={send} busy={busy} startLabel="Deal next round" onStarted={() => setPicker(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

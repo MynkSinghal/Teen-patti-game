@@ -80,7 +80,6 @@ test('dealer picks the variation each round; raises, pots, results and hands are
   for (const p of all) {
     await expect(p.page.getByTestId('pot')).toHaveText(String(30 + paid));
     await expect(p.page.getByTestId(`seat-${first.name}`).getByTestId('last-action')).toHaveText('Raised to 20');
-    await expect(p.page.getByTestId(`seat-${first.name}`).getByTestId('committed')).toHaveText(`in ${10 + paid}`);
   }
   await expect(first.page.getByTestId('my-committed')).toHaveText(String(10 + paid));
   await expect(host.page.getByTestId('stake-ladder')).toContainText(`raised by ${first.name}`);
@@ -107,6 +106,8 @@ test('dealer picks the variation each round; raises, pots, results and hands are
 
   // Dealer rotates to Bela, who picks muflis; host cannot see a start button until stepping in
   await expect(host.page.getByTestId('next-round')).toHaveCount(0);
+  await expect(host.page.getByTestId('choose-game')).toHaveCount(0);
+  await b.page.getByTestId('choose-game').click();
   await expect(b.page.getByTestId('next-round')).toBeVisible();
   await b.page.getByTestId('pick-muflis').click();
   await b.page.getByTestId('next-round').click();

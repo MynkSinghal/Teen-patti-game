@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Activity, Loader2, Menu as MenuIcon, RefreshCw, RotateCw, WifiOff, X } from 'lucide-react';
+import { Loader2, Menu as MenuIcon, RefreshCw, RotateCw, ScrollText, WifiOff, X } from 'lucide-react';
 import { useGameSfx } from '@/hooks/useGameSfx';
 import { useLs, usePhonePortrait } from '@/hooks/useLs';
 import { useRoom } from '@/hooks/useRoom';
@@ -9,14 +9,13 @@ import { unlockAudio } from '@/lib/sound';
 import { useRoomStore } from '@/store/room';
 import { useUI } from '@/store/ui';
 import { ActionBar } from './ActionBar';
-import { ChatBanner, ChatBubble, ChatSheet } from './Chat';
-import { Hand } from './Hand';
+import { ChatBanner, ChatButton, ChatSheet } from './Chat';
 import { JokerSheet } from './JokerSheet';
 import { Lobby } from './Lobby';
 import { SideshowLayer, SideshowResult, TableBanner } from './Sideshow';
 import { VariationIntro } from './VariationIntro';
 import { RoundEnd } from './Overlays';
-import { FeedSheet, LeaveSheet, MenuSheet, PotSheet } from './Panels';
+import { FeedSheet, LeaveSheet, MenuSheet, PotSheet, SettingsSheet } from './Panels';
 import { RulesSheet } from './RulesSheet';
 import { StakeLadder } from './StakeLadder';
 import { Table } from './Table';
@@ -108,11 +107,23 @@ function MyMoney({ view }: { view: NonNullable<ReturnType<typeof useRoomStore.ge
   const bal = view.room.players.find((p) => p.id === view.me.playerId)?.balance ?? 0;
   if (!g || !mine) return null;
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl bg-panel-2 px-3 py-1.5 text-xs short:py-1 short:text-[11px]" data-testid="my-money">
-      <span className="text-muted">You've put in <b className="text-gold-soft tabular-nums" data-testid="my-committed">{mine.committed.toLocaleString()}</b></span>
-      <span className="text-muted">Pot <b className="text-paper tabular-nums">{g.pot.toLocaleString()}</b></span>
-      <span className="text-muted">Balance <b className="text-paper tabular-nums">{bal.toLocaleString()}</b></span>
+    <div className="flex items-baseline justify-between px-1 text-[10.5px] text-[#cdb87a]" data-testid="my-money">
+      <span>You put in <b className="num text-[15px] text-gold-soft" data-testid="my-committed">{mine.committed.toLocaleString()}</b></span>
+      <span>Chips <b className="num text-[15px] text-paper">{bal.toLocaleString()}</b></span>
     </div>
+  );
+}
+
+function JokerHint({ view }: { view: NonNullable<ReturnType<typeof useRoomStore.getState>['view']> }) {
+  const g = view.room.game;
+  const priv = view.me.private;
+  if (!g || g.phase === 'ended' || !priv?.inRound || priv.folded) return null;
+  if (!(g.jokerRanks.length > 0 || g.lowestCardJoker)) return null;
+  const mine = priv.jokers?.indexes.length ?? 0;
+  return (
+    <p className="rounded-lg bg-[#120c06] px-2 py-1 text-center text-[10px] leading-snug text-paper/85 ring-1 ring-line" data-testid="joker-coach">
+      {!priv.cards ? <>🃏 Jokers count as your <b>best card</b> automatically.</> : mine > 0 ? <>🃏 Your joker counts as your best card. <b>Tap it</b> to choose what to announce.</> : <>No jokers in your hand this round.</>}
+    </p>
   );
 }
 
@@ -165,51 +176,48 @@ export function RoomScreen({ code }: { code: string }) {
   g?.players.forEach((p) => names.set(p.id, p.name));
 
   return (
-    <div className={`fl-root mx-auto flex min-h-[var(--app-h)] max-w-md flex-col ls:max-w-none ${showTable ? 'ls:h-[var(--app-h)] ls:max-h-[var(--app-h)] ls:min-h-0 ls:overflow-hidden' : ''}`} data-testid="app-root">
+    <div className="fl-root mx-auto flex min-h-[var(--app-h)] max-w-md flex-col ls:h-[var(--app-h)] ls:max-h-[var(--app-h)] ls:min-h-0 ls:max-w-none ls:overflow-hidden" data-testid="app-root">
       <ConnectionBanner retry={retry} />
       <Toast />
       <ChatBanner />
-      <header className="flex items-center justify-between px-4 py-3 ls:h-11 ls:shrink-0 ls:py-0">
-        <div>
-          <p className="font-display text-lg leading-tight text-gold" data-testid="header-code">{room.name || 'Teen Patti'} <span className="tracking-widest text-paper/70">· {room.code}</span></p>
-          <p className="text-[11px] uppercase tracking-wider text-muted">
-            {room.status === 'lobby' ? 'Lobby' : room.status === 'between' ? `Round ${room.round} finished` : `Round ${room.round}`}
+      <header className="flex items-center justify-between px-4 py-2.5 ls:h-11 ls:shrink-0 ls:py-0">
+        <div className="min-w-0 leading-tight">
+          <p className="truncate font-display text-[15px] font-extrabold tracking-[0.2em] text-gold" data-testid="header-code">{(room.name || 'Teen Patti').toUpperCase()}</p>
+          <p className="caps truncate text-[8.5px] text-muted">
+            Room {room.code} · {room.status === 'lobby' ? 'Lobby' : room.status === 'between' ? `Round ${room.round} finished` : `Round ${room.round}`}
           </p>
         </div>
         <div className="flex gap-2">
+          <ChatButton />
           {showTable && (
-            <button aria-label="Table activity" className="grid h-10 w-10 place-items-center rounded-lg border border-line" onClick={() => open('feed')} data-testid="feed-btn"><Activity size={18} /></button>
+            <button aria-label="Table activity" className="medallion-sm grid h-8 w-8 place-items-center text-gold-soft" onClick={() => open('feed')} data-testid="feed-btn"><ScrollText size={15} /></button>
           )}
-          <button aria-label="Menu" className="grid h-10 w-10 place-items-center rounded-lg border border-line" onClick={() => open('menu')} data-testid="menu-btn"><MenuIcon size={18} /></button>
+          <button aria-label="Menu" className="medallion-sm grid h-8 w-8 place-items-center text-gold-soft" onClick={() => open('menu')} data-testid="menu-btn"><MenuIcon size={15} /></button>
         </div>
       </header>
 
       {!showTable ? (
         <Lobby view={view} send={send} busy={busy} />
       ) : (
-        <main className="flex flex-1 flex-col gap-2 px-3 safe-bottom ls:grid ls:min-h-0 ls:flex-1 ls:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] ls:gap-3 ls:overflow-hidden ls:px-4 ls:pb-2" data-testid="game-main">
+        <main className="flex flex-1 flex-col gap-2 px-3 safe-bottom ls:grid ls:min-h-0 ls:flex-1 ls:grid-cols-[minmax(0,1fr)_206px] ls:gap-3 ls:overflow-hidden ls:px-3 ls:pb-2" data-testid="game-main">
           <div className="ls:h-full ls:min-h-0">
-            <Table view={view} />
+            <Table view={view} send={send} busy={busy} />
           </div>
-          <div className="mt-auto space-y-2 ls:mt-0 ls:min-h-0 ls:overflow-y-auto ls:pr-1" data-testid="side-panel">
+          <div className="flex flex-col gap-1.5 ls:min-h-0 ls:justify-center ls:overflow-y-auto" data-testid="side-panel">
             {g && g.phase !== 'ended' && <StakeLadder game={g} names={names} />}
-            <SideshowResult view={view} />
-            <Hand view={view} busy={busy} onSee={() => send({ type: 'see' })} />
             <MyMoney view={view} />
-            <div className="ls:sticky ls:bottom-0 ls:z-10 ls:-mx-1 ls:bg-ink/95 ls:px-1 ls:pb-1 ls:pt-1 ls:backdrop-blur" data-testid="action-dock">
-              <ActionBar view={view} send={send} busy={busy} />
-            </div>
-            <RoundEnd view={view} send={send} busy={busy} />
-            {room.status === 'between' && me.isHost && <HostBetween view={view} send={send} busy={busy} />}
+            <JokerHint view={view} />
+            <SideshowResult view={view} />
+            <div data-testid="action-dock"><ActionBar view={view} send={send} busy={busy} /></div>
           </div>
         </main>
       )}
+      <RoundEnd view={view} send={send} busy={busy} />
 
       <RotateHint active={showTable} />
       {showTable && <SideshowLayer view={view} send={send} busy={busy} />}
       {showTable && <TableBanner view={view} />}
       {showTable && <VariationIntro view={view} />}
-      <ChatBubble />
       <ChatSheet code={code} />
       <MenuSheet view={view} code={code} send={send} />
       <FeedSheet view={view} code={code} />
@@ -217,16 +225,7 @@ export function RoomScreen({ code }: { code: string }) {
       <RulesSheet />
       <LeaveSheet view={view} send={send} />
       <JokerSheet view={view} send={send} busy={busy} />
-    </div>
-  );
-}
-
-function HostBetween({ view, send, busy }: { view: NonNullable<ReturnType<typeof useRoomStore.getState>['view']>; send: ReturnType<typeof useRoom>['send']; busy: boolean }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="pb-2 text-center">
-      <button className="text-xs text-gold underline" onClick={() => setOpen(!open)} data-testid="between-settings">Edit table rules / remove players</button>
-      {open && <div className="mt-2 text-left"><Lobby view={view} send={send} busy={busy} mode="between" /></div>}
+      <SettingsSheet view={view} send={send} busy={busy} />
     </div>
   );
 }
