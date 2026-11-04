@@ -1,7 +1,7 @@
 'use client';
 import { useMemo } from 'react';
 import { rankChar } from '@/engine/cards';
-import { resolveHand, type JokerAssign } from '@/engine/variations/base';
+import { choiceKeepsBest, resolveHand, type JokerAssign } from '@/engine/variations/base';
 import type { Card, VariationContext } from '@/engine/types';
 import type { CommandInput } from '@/hooks/useRoom';
 import { cardText, SUIT_CHAR } from '@/lib/cards-ui';
@@ -41,14 +41,15 @@ export function JokerSheet({ view, send, busy }: { view: ClientView; send: (c: C
     if (c) a[String(index)] = c; else delete a[String(index)];
     return resolveHand(cards, ctx, a).score.label;
   };
+  const keeps = (c: Card) => choiceKeepsBest(cards, ctx, { ...base, [String(index)]: c });
   const choose = async (c: Card | null) => {
     if (await send({ type: 'set_joker', index, as: c })) close();
   };
   return (
     <Sheet open onClose={close} title="Set your joker" testId="joker-sheet">
       <p className="text-sm text-paper/80">
-        This <b className="text-gold-soft">{cardText(cards[index]!)}</b> is a joker: choose any card for it to stand for.
-        <br /><span className="text-muted">Whatever you set here is what gets compared at a show or sideshow, and everyone sees it at the show. <b>Auto</b> picks your best hand.</span>
+        Your <b className="text-gold-soft">{cardText(cards[index]!)}</b> is a joker. It <b>already counts as your best possible card</b>, so you never lose by not choosing.
+        <br /><span className="text-muted">Picking only decides which card you announce. Everyone sees it if your hand is shown. Only picks that keep your best hand are allowed.</span>
       </p>
       <button className={`btn mt-3 w-full ${current === null ? 'btn-gold' : 'btn-ghost'}`} disabled={busy} onClick={() => choose(null)} data-testid="joker-auto">
         Auto (best hand) <span className="ml-2 text-xs opacity-75">→ {preview(null)}</span>
@@ -58,14 +59,15 @@ export function JokerSheet({ view, send, busy }: { view: ClientView; send: (c: C
           <div key={suit} className="grid grid-cols-13 gap-1" style={{ gridTemplateColumns: 'repeat(13, minmax(0, 1fr))' }}>
             {RANKS.map((rank) => {
               const sel = current?.rank === rank && current.suit === suit;
+              const ok = keeps({ rank, suit });
               const red = suit === 'H' || suit === 'D';
               return (
                 <button
                   key={rank}
-                  disabled={busy}
+                  disabled={busy || !ok}
                   onClick={() => choose({ rank, suit })}
                   aria-label={`${rankChar(rank)} of ${suit}`}
-                  className={`aspect-[3/4] rounded-md text-[11px] font-bold leading-none ${sel ? 'bg-gold text-ink ring-2 ring-gold-soft' : 'bg-paper'} ${!sel && red ? 'text-[#b3261e]' : !sel ? 'text-ink' : ''}`}
+                  className={`aspect-[3/4] rounded-md text-[11px] font-bold leading-none ${sel ? 'bg-gold text-ink ring-2 ring-gold-soft' : 'bg-paper'} ${!sel && red ? 'text-[#b3261e]' : !sel ? 'text-ink' : ''} ${ok ? '' : 'opacity-15'}`}
                   data-testid={`jk-${rankChar(rank)}${suit}`}
                 >
                   <span className="block">{rankChar(rank)}</span>

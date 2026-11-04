@@ -16,8 +16,9 @@ Household rules differ – each interpretation below is deliberate and tested (`
 | **Dealer's Choice** | The host picks the variation (and options) when starting each round. |
 
 ## Joker evaluation
-In joker games (AK47, Joker) you can **tap a joker card in your hand and choose the card it stands for**. Whatever you set is what is compared at a show or sideshow,
-and it is revealed to the table at a show ("joker as 9♣") and to the other player in a sideshow. If you don't choose, the joker is **Auto**: it takes the value that produces your best classic hand. When two hands are otherwise exactly equal, the hand with
+In joker games (AK47, Joker) a joker **always counts as the best possible card for your hand**. Scoring at a show or sideshow never depends on whether you picked anything,
+so not choosing can never make you lose. You may **tap a joker card to choose which card you announce** ("joker as 9♣"); only picks that keep your best hand are allowed,
+and the announced value is revealed to the table at a show and to the other player in a sideshow. When two hands are otherwise exactly equal, the hand with
 **fewer jokers wins** (natural beats wild). Three jokers = A-A-A.
 
 ## Examples

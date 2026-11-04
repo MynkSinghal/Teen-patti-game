@@ -22,9 +22,9 @@ export function Hand({ view, onSee, busy }: { view: ClientView; onSee: () => voi
       {jokerGame && !priv.folded && game!.phase !== 'ended' && (
         <div className={`w-full truncate rounded-lg border px-2.5 py-1 text-center text-[11.5px] leading-snug ${cards && myJokers > 0 ? 'border-gold bg-gold/15 text-paper' : 'border-line bg-panel-2 text-paper/85'}`} data-testid="joker-coach">
           {!cards ? (
-            <>🃏 <b>Jokers: {jokerWord}.</b> See cards, then <b>tap a joker</b> to pick its card.</>
+            <>🃏 <b>Jokers: {jokerWord}.</b> They count as your best card automatically.</>
           ) : myJokers > 0 ? (
-            <>👇 <b>Tap the glowing joker</b> to choose its card{anyAuto ? ' (now: Auto = best hand)' : ''}</>
+            <>Joker counts as your <b>best card</b>{anyAuto ? '' : ' (announced)'}. Tap it to choose what to announce.</>
           ) : (
             <>No jokers in your hand this round ({jokerWord} are jokers).</>
           )}

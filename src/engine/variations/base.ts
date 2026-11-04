@@ -41,26 +41,47 @@ export interface ResolvedHand {
   auto: boolean[];
 }
 
-/** Evaluate a hand honouring the player's own joker choices; free jokers take their best value. */
+const evalWith = (ctx: VariationContext) => (c: Card[]) => evalClassic(c, ctx.aceLowSequence);
+
+/**
+ * Evaluate a hand. Jokers ALWAYS count as the best possible card for this hand: scoring never depends on
+ * what the player picked. A player's pick only decides which (equally strong) card is announced, and is
+ * honoured only when it keeps the best hand.
+ */
 export function resolveHand(cards: Card[], ctx: VariationContext, assign?: JokerAssign): ResolvedHand {
   const jIdx = jokerIndexes(cards, ctx);
-  const chosen = jIdx.filter((i) => assign?.[String(i)]);
-  const free = jIdx.filter((i) => !assign?.[String(i)]);
   const natural = cards.filter((_, i) => !jIdx.includes(i));
-  const fixed = chosen.map((i) => assign![String(i)]!);
-  const { score, subs } = bestWithJokersDetailed([...natural, ...fixed], free.length, (c) => evalClassic(c, ctx.aceLowSequence));
-  const effective = cards.map((c, i) => {
-    if (!jIdx.includes(i)) return c;
-    if (chosen.includes(i)) return assign![String(i)]!;
-    return subs[free.indexOf(i)]!;
-  });
-  const key = ctx.naturalBeatsJoker ? [...score.key, -jIdx.length] : score.key;
+  const best = bestWithJokersDetailed(natural, jIdx.length, evalWith(ctx));
+  let effective = cards.map((c, i) => (jIdx.includes(i) ? best.subs[jIdx.indexOf(i)]! : c));
+  let auto = cards.map((_, i) => jIdx.includes(i));
+  const chosen = jIdx.filter((i) => assign?.[String(i)]);
+  if (chosen.length) {
+    const free = jIdx.filter((i) => !assign?.[String(i)]);
+    const fixed = chosen.map((i) => assign![String(i)]!);
+    const r = bestWithJokersDetailed([...natural, ...fixed], free.length, evalWith(ctx));
+    if (compareScores(r.score, best.score) === 0) {
+      effective = cards.map((c, i) => (!jIdx.includes(i) ? c : chosen.includes(i) ? assign![String(i)]! : r.subs[free.indexOf(i)]!));
+      auto = cards.map((_, i) => free.includes(i));
+    }
+  }
+  const key = ctx.naturalBeatsJoker ? [...best.score.key, -jIdx.length] : best.score.key;
   return {
-    score: { key, label: jIdx.length ? `${score.label} (joker)` : score.label, jokers: jIdx.length },
+    score: { key, label: jIdx.length ? `${best.score.label} (joker)` : best.score.label, jokers: jIdx.length },
     effective,
     jokerAs: cards.map((_, i) => (jIdx.includes(i) ? effective[i]! : null)),
-    auto: cards.map((_, i) => free.includes(i)),
+    auto,
   };
+}
+
+/** Would announcing these joker values still describe the player's best hand? */
+export function choiceKeepsBest(cards: Card[], ctx: VariationContext, assign: JokerAssign): boolean {
+  const jIdx = jokerIndexes(cards, ctx);
+  const natural = cards.filter((_, i) => !jIdx.includes(i));
+  const best = bestWithJokersDetailed(natural, jIdx.length, evalWith(ctx)).score;
+  const chosen = jIdx.filter((i) => assign[String(i)]);
+  const free = jIdx.length - chosen.length;
+  const r = bestWithJokersDetailed([...natural, ...chosen.map((i) => assign[String(i)]!)], free, evalWith(ctx)).score;
+  return compareScores(r, best) === 0;
 }
 
 /** Classic high-hand score with joker handling; fewer jokers wins an otherwise exact tie. */

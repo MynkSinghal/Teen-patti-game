@@ -13,7 +13,7 @@ import type {
 } from './types';
 import { EngineError } from './types';
 import { getVariation } from './variations';
-import { jokerIndexes, resolveHand } from './variations/base';
+import { choiceKeepsBest, jokerIndexes, resolveHand } from './variations/base';
 
 const MAX_LOG = 40;
 
@@ -217,6 +217,9 @@ export function applyAction(prev: EngineState, playerId: string, action: Action,
         throw new EngineError('INVALID_ACTION', 'Pick a valid card for the joker.');
       }
       const mine = (state.assign[playerId] ??= {});
+      if (a !== null && !choiceKeepsBest(state.hands[playerId]!, state.ctx, { ...mine, [String(action.index)]: a })) {
+        throw new EngineError('INVALID_ACTION', 'That card would make your hand weaker. Jokers always count as your best card, so pick one that keeps your hand.');
+      }
       if (a === null) delete mine[String(action.index)];
       else mine[String(action.index)] = a;
       return { state, events };

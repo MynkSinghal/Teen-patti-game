@@ -34,8 +34,8 @@ export function VariationIntro({ view }: { view: ClientView }) {
               <ol className="mt-4 space-y-2 text-sm">
                 <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gold font-bold text-ink">1</span><span><b>Jokers this round: {jokerText}.</b> A joker can stand in for any card.</span></li>
                 <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gold font-bold text-ink">2</span><span>Tap <b>See cards</b> to look at your hand.</span></li>
-                <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gold font-bold text-ink">3</span><span><b>Tap your joker card</b> (it glows gold) and pick the card you want it to be. Leave it on <b>Auto</b> and it becomes your best possible card.</span></li>
-                <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gold font-bold text-ink">4</span><span>What you pick is what counts at a show or sideshow, and everyone sees it at the show.</span></li>
+                <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gold font-bold text-ink">3</span><span>Your jokers <b>automatically count as your best possible card</b>. You don't have to do anything.</span></li>
+                <li className="flex gap-3"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gold font-bold text-ink">4</span><span>Optional: <b>tap a glowing joker</b> to choose which card you announce. Everyone sees it if your hand is shown.</span></li>
               </ol>
             ) : (
               <ul className="mt-3 space-y-1.5 text-sm text-paper/90">{doc?.rules.slice(0, 3).map((r) => <li key={r} className="flex gap-2"><span className="text-gold">♠</span>{r}</li>)}</ul>

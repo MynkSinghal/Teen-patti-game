@@ -499,19 +499,31 @@ describe('player-controlled jokers', () => {
     expect(s.assign.p0).toEqual({ '0': { rank: 9, suit: 'S' } });
     expect(code(() => act(mkRound(3), 'p0', { type: 'set_joker', index: 0, as: null }))).toBe('INVALID_ACTION'); // classic: no jokers
   });
-  it('auto picks the best value; the player may override it and the label follows', () => {
+  it('jokers always count as the best card; a pick is only an announcement and must keep the best hand', () => {
     let s = ak(['AS 9H 9D', '2S 3H 5D', '6S 8H JD']);
     s = act(s, 'p0', { type: 'see' });
     let pv = privateView(s, 'p0');
     expect(pv.handLabel).toMatch(/Trail of 9s/);
     expect(pv.jokers).toMatchObject({ indexes: [0], auto: [true, false, false] });
-    s = act(s, 'p0', { type: 'set_joker', index: 0, as: { rank: 2, suit: 'C' } });
+    // a weaker pick is refused (it would have changed the hand)
+    expect(code(() => act(s, 'p0', { type: 'set_joker', index: 0, as: { rank: 2, suit: 'C' } }))).toBe('INVALID_ACTION');
+    // an equally strong pick is accepted and only changes what is announced
+    s = act(s, 'p0', { type: 'set_joker', index: 0, as: { rank: 9, suit: 'C' } });
     pv = privateView(s, 'p0');
-    expect(pv.handLabel).toMatch(/Pair of 9s/);
-    expect(pv.jokers!.as[0]).toEqual({ rank: 2, suit: 'C' });
+    expect(pv.handLabel).toMatch(/Trail of 9s/);
+    expect(pv.jokers!.as[0]).toEqual({ rank: 9, suit: 'C' });
     expect(pv.jokers!.auto[0]).toBe(false);
     s = act(s, 'p0', { type: 'set_joker', index: 0, as: null }); // back to auto
-    expect(privateView(s, 'p0').handLabel).toMatch(/Trail of 9s/);
+    expect(privateView(s, 'p0').jokers!.auto[0]).toBe(true);
+  });
+  it('not choosing a joker never costs you: a show uses the best value either way', () => {
+    // p1 never touches the joker; p2 holds a natural pair of 9s with a better kicker
+    let s = ak(['2S 3H 5D', 'AS 9H 9D', '5S 9C 9H']);
+    s = act(s, 'p0', { type: 'pack' });
+    s = act(s, 'p1', { type: 'show' });
+    const rev = s.result!.reveal.find((x) => x.playerId === 'p1')!;
+    expect(rev.label).toMatch(/Trail of 9s/); // joker counted as a 9 automatically
+    expect(s.result!.payouts[0]!.playerId).toBe('p1');
   });
   it('lowest-card joker: index follows the lowest card', () => {
     let s = mkRound(3, { variation: 'joker', variationOptions: { jokerMode: 'lowest' }, hands: ['KS 2H KD', '4S 6H JD', '7S 8H 9D'] });
@@ -519,22 +531,18 @@ describe('player-controlled jokers', () => {
     expect(privateView(s, 'p0').jokers!.indexes).toEqual([1]);
     expect(privateView(s, 'p0').handLabel).toMatch(/Trail of Kings/);
   });
-  it('show honours the chosen values and reveals who set what; others cannot see it before', () => {
-    let s = ak(['AS 9H 9D', '5S 9C 9H', '2S 3H 5D']);
-    s = act(s, 'p0', { type: 'pack' }); // wait: p0 is first to act and has a strong hand; make p2 pack instead
-    void s;
-    s = ak(['2S 3H 5D', 'AS 9H 9D', '5S 9C 9H']);
+  it('the announced joker value is revealed at a show; others cannot see it before', () => {
+    let s = ak(['2S 3H 5D', 'AS 9H 9D', '5S 8C 9H']);
     s = act(s, 'p0', { type: 'pack' });
     s = act(s, 'p1', { type: 'see' });
-    s = act(s, 'p1', { type: 'set_joker', index: 0, as: { rank: 2, suit: 'C' } }); // deliberately weak: pair of 9s
+    s = act(s, 'p1', { type: 'set_joker', index: 0, as: { rank: 9, suit: 'C' } });
     expect(JSON.stringify(publicView(s))).not.toContain('"assign"');
     expect(privateView(s, 'p2').jokers).toBeNull();
     s = act(s, 'p1', { type: 'show' });
-    const r = s.result!;
-    const rev = r.reveal.find((x) => x.playerId === 'p1')!;
-    expect(rev.jokerAs![0]).toEqual({ rank: 2, suit: 'C' });
-    expect(rev.label).toMatch(/Pair of 9s/);
-    expect(r.payouts[0]!.playerId).toBe('p2'); // p2 (pair of 9s, 5 kicker... ) vs p1 (pair of 9s, 3? ) sanity: higher kicker wins
+    const rev = s.result!.reveal.find((x) => x.playerId === 'p1')!;
+    expect(rev.jokerAs![0]).toEqual({ rank: 9, suit: 'C' });
+    expect(rev.label).toMatch(/Trail of 9s/);
+    expect(s.result!.payouts[0]!.playerId).toBe('p1');
   });
   it('auto jokers at a show are reported with their best value', () => {
     let s = ak(['2S 3H 5D', 'AS 9H 9D', '4S 6H JD']);
