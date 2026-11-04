@@ -105,6 +105,9 @@ export function SettingsForm({
             <Field label="Max stake (× boot)">
               <input className="input" type="number" min={1} value={value.maxStakeMultiple} onChange={num('maxStakeMultiple')} />
             </Field>
+            <Field label="Top-ups per player (0 = off)">
+              <input className="input" type="number" min={0} max={20} value={value.maxRebuys} onChange={num('maxRebuys')} data-testid="max-rebuys" />
+            </Field>
             <Field label="Max sideshows / round">
               <input className="input" type="number" min={0} max={20} value={value.maxSideshowRequests} onChange={num('maxSideshowRequests')} />
             </Field>

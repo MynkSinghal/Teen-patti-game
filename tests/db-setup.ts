@@ -14,6 +14,7 @@ export async function freshDb() {
   `);
   await sql.unsafe(readFileSync('supabase/migrations/0001_core_schema.sql', 'utf8'));
   await sql.unsafe(readFileSync('supabase/migrations/0003_chat.sql', 'utf8'));
+  await sql.unsafe(readFileSync('supabase/migrations/0005_buyins.sql', 'utf8'));
   return sql;
 }
 

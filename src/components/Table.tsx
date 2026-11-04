@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Coins } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
 import { rankChar } from '@/engine/cards';
+import { useLs } from '@/hooks/useLs';
 import { useUI } from '@/store/ui';
 import type { ClientView } from '@/server/view';
 import { ChipFlights } from './Chips';
@@ -33,22 +34,25 @@ export function Table({ view }: { view: ClientView }) {
   const players = room.players;
   const n = players.length;
   const meIdx = Math.max(0, players.findIndex((p) => p.id === me.playerId));
+  const ls = useLs();
+  // Crowded table or small screen: use the compact seat so nothing overlaps.
+  const compact = n >= 6 || (ls && n >= 5);
 
   const positions = useMemo(() => {
     const map = new Map<string, { x: number; y: number }>();
     players.forEach((p, i) => {
       const k = (i - meIdx + n) % n;
       const a = Math.PI / 2 + (k * 2 * Math.PI) / n; // me at the bottom, others clockwise
-      map.set(p.id, { x: 50 + 41 * Math.cos(a), y: 46 + 37 * Math.sin(a) });
+      map.set(p.id, { x: 50 + (compact ? 42 : 41) * Math.cos(a), y: (compact ? 49 : 46) + (compact ? 35.5 : 37) * Math.sin(a) });
     });
     return map;
-  }, [players, meIdx, n]);
+  }, [players, meIdx, n, compact]);
   const seatPos = useCallback((id: string) => positions.get(id) ?? null, [positions]);
   const winners = new Set(game?.phase === 'ended' ? game.result?.payouts.map((p) => p.playerId) : []);
   const gameIds = new Set(game?.players.map((p) => p.id) ?? []);
 
   return (
-    <div className="relative mx-auto h-[min(41dvh,360px)] min-h-[290px] w-full max-w-md ls:h-full ls:min-h-0 ls:max-w-none" data-testid="table">
+    <div className="relative mx-auto h-[min(calc(var(--app-h)*0.41),360px)] min-h-[290px] w-full max-w-md ls:h-full ls:min-h-0 ls:max-w-none" data-testid="table">
       <div className="felt absolute inset-x-[8%] inset-y-[9%] rounded-[50%]" />
       <div className="absolute inset-x-[8%] inset-y-[9%] rounded-[50%] ring-1 ring-inset ring-gold/20" style={{ margin: 7 }} />
       <div className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2 text-center ls:scale-90" data-testid="pot-btn">
@@ -93,6 +97,7 @@ export function Table({ view }: { view: ClientView }) {
               gp={gp}
               inRound={gameIds.has(p.id)}
               winner={winners.has(p.id)}
+              compact={compact}
             />
           </div>
         );

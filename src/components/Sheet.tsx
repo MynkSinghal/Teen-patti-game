@@ -13,8 +13,8 @@ export function Sheet({ open, onClose, title, children, side = 'bottom', testId 
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
   const panel = side === 'bottom'
-    ? 'inset-x-0 bottom-0 mx-auto max-h-[88dvh] max-w-md rounded-t-3xl'
-    : 'inset-y-0 right-0 w-[min(92vw,380px)] rounded-l-3xl';
+    ? 'inset-x-0 bottom-0 mx-auto max-h-[calc(var(--app-h)*0.88)] max-w-md rounded-t-3xl'
+    : 'inset-y-0 right-0 w-[min(92%,380px)] rounded-l-3xl';
   const from = side === 'bottom' ? { y: '100%' } : { x: '100%' };
   const to = side === 'bottom' ? { y: 0 } : { x: 0 };
   return (

@@ -36,6 +36,8 @@ export const roomSettingsSchema = z
     maxSideshowRequests: int(0, 20).default(5),
     tieHandling: z.enum(['challenger_loses', 'split']).default('challenger_loses'),
     aceLowSequence: z.enum(['second', 'lowest', 'none']).default('second'),
+    /** How many times a player may top up to a full stack. 0 = no rebuys. */
+    maxRebuys: int(0, 20).default(3),
     autoNextRound: z.boolean().default(false),
     nextRoundDelaySeconds: int(3, 60).default(10),
   })
@@ -98,6 +100,7 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('see'), idempotencyKey: key, gameVersion: gv.optional() }),
   z.object({ type: z.literal('bet'), idempotencyKey: key, gameVersion: gv, raise: z.boolean().optional() }),
   z.object({ type: z.literal('pack'), idempotencyKey: key, gameVersion: gv }),
+  z.object({ type: z.literal('allin'), idempotencyKey: key, gameVersion: gv }),
   z.object({ type: z.literal('show'), idempotencyKey: key, gameVersion: gv }),
   z.object({ type: z.literal('sideshow_request'), idempotencyKey: key, gameVersion: gv }),
   z.object({ type: z.literal('sideshow_respond'), idempotencyKey: key, gameVersion: gv, accept: z.boolean() }),

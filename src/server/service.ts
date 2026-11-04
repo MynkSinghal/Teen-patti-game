@@ -69,6 +69,7 @@ const mapRoom = (r: Record<string, unknown>): RoomRow => ({
 const mapPlayer = (r: Record<string, unknown>): PlayerRow => ({
   ...(r as unknown as PlayerRow),
   chip_balance: Number(r.chip_balance),
+  total_buy_in: Number(r.total_buy_in),
 });
 
 type Mode = 'write' | 'read';
@@ -80,7 +81,7 @@ async function loadCtx(tx: Tx, code: string, userId: string, mode: Mode, allHand
       : await tx`select * from rooms where room_code = ${code}`;
   if (rooms.length === 0) throw new AppError('NOT_FOUND', 'That room does not exist.');
   const room = mapRoom(rooms[0]!);
-  const players = (await tx`select * from players where room_id = ${room.id} order by seat_number`).map(mapPlayer);
+  const players = (await tx`select * from players where room_id = ${room.id} and not has_left order by seat_number`).map(mapPlayer);
   const me = players.find((p) => p.auth_user_id === userId);
   if (!me) throw new AppError('FORBIDDEN', 'You are not a member of this room.');
   const nowMs = await dbNow(tx);
@@ -297,8 +298,8 @@ export async function createRoom(
       if (!inserted.length) continue;
       const room = mapRoom(inserted[0]!);
       const [p] = await tx`
-        insert into players (room_id, auth_user_id, display_name, seat_number, chip_balance, is_host, is_ready)
-        values (${room.id}, ${userId}, ${input.displayName}, 0, ${settings.startingChips}, true, true) returning *`;
+        insert into players (room_id, auth_user_id, display_name, seat_number, chip_balance, total_buy_in, is_host, is_ready)
+        values (${room.id}, ${userId}, ${input.displayName}, 0, ${settings.startingChips}, ${settings.startingChips}, true, true) returning *`;
       room.host_player_id = p!.id as string;
       const ctx = await buildBareCtx(tx, room, [mapPlayer(p!)], userId);
       await persist(ctx);
@@ -320,8 +321,10 @@ export async function joinRoom(userId: string, code: string, displayName: string
     const rooms = await tx`select * from rooms where room_code = ${code} for update`;
     if (!rooms.length) throw new AppError('NOT_FOUND', "We couldn't find a room with that code.");
     const room = mapRoom(rooms[0]!);
-    const players = (await tx`select * from players where room_id = ${room.id} order by seat_number`).map(mapPlayer);
+    const everyone = (await tx`select * from players where room_id = ${room.id}`).map(mapPlayer);
+    const players = everyone.filter((p) => !p.has_left).sort((a, b) => a.seat_number - b.seat_number);
     const existing = players.find((p) => p.auth_user_id === userId);
+    const previous = everyone.find((p) => p.auth_user_id === userId && p.has_left);
     const nowMs = await dbNow(tx);
     if (room.status === 'closed') throw new AppError('ROOM_CLOSED', 'This room was closed by the host.');
     if (room.expires_at.getTime() < nowMs) throw new AppError('ROOM_EXPIRED', 'This room has expired.');
@@ -329,6 +332,7 @@ export async function joinRoom(userId: string, code: string, displayName: string
       await tx`update players set is_connected = true, last_seen_at = now() where id = ${existing.id}`;
       return { code, playerId: existing.id };
     }
+    if (previous?.kicked) throw new AppError('FORBIDDEN', 'The host removed you from this room.');
     if (players.length >= room.settings.maxPlayers) throw new AppError('ROOM_FULL', 'This room is full.');
     const taken = new Set(players.map((p) => p.seat_number));
     let seat = 0;
@@ -336,9 +340,19 @@ export async function joinRoom(userId: string, code: string, displayName: string
     let name = displayName;
     const names = new Set(players.map((p) => p.display_name.toLowerCase()));
     for (let i = 2; names.has(name.toLowerCase()); i++) name = `${displayName.slice(0, 17)} ${i}`;
+    if (previous) {
+      // Coming back: same chips, same buy-in history. No fresh stack.
+      const [back] = await tx`
+        update players set has_left = false, seat_number = ${seat}, display_name = ${name}, is_connected = true, is_ready = false, is_host = false, last_seen_at = now()
+        where id = ${previous.id} returning *`;
+      const all = [...players, mapPlayer(back!)];
+      const ctx: Ctx = { ...(await buildBareCtx(tx, room, all, userId)) };
+      await persist(await loadGameForBare(tx, ctx));
+      return { code, playerId: previous.id };
+    }
     const [p] = await tx`
-      insert into players (room_id, auth_user_id, display_name, seat_number, chip_balance)
-      values (${room.id}, ${userId}, ${name}, ${seat}, ${room.settings.startingChips}) returning *`;
+      insert into players (room_id, auth_user_id, display_name, seat_number, chip_balance, total_buy_in)
+      values (${room.id}, ${userId}, ${name}, ${seat}, ${room.settings.startingChips}, ${room.settings.startingChips}) returning *`;
     const all = [...players, mapPlayer(p!)];
     const ctx: Ctx = { ...(await buildBareCtx(tx, room, all, userId)) };
     const gameCtx = await loadGameForBare(tx, ctx);
@@ -402,13 +416,13 @@ export async function heartbeat(userId: string, code: string, sql: Sql = getSql(
   const changed = await sql.begin(async (tx) => {
     const rows = await tx`
       select p.id, p.is_connected, r.id as room_id from players p join rooms r on r.id = p.room_id
-      where r.room_code = ${code} and p.auth_user_id = ${userId}`;
+      where r.room_code = ${code} and p.auth_user_id = ${userId} and not p.has_left`;
     if (!rows.length) throw new AppError('FORBIDDEN', 'You are not a member of this room.');
     const was = rows[0]!.is_connected as boolean;
     await tx`update players set last_seen_at = now(), is_connected = true where id = ${rows[0]!.id}`;
     const stale = await tx`
       update players set is_connected = false
-      where room_id = ${rows[0]!.room_id} and is_connected and id <> ${rows[0]!.id}
+      where room_id = ${rows[0]!.room_id} and not has_left and is_connected and id <> ${rows[0]!.id}
         and last_seen_at < now() - ${STALE_AFTER_SECONDS + ' seconds'}::interval returning id`;
     return !was || stale.length > 0;
   });
@@ -426,7 +440,7 @@ export async function heartbeat(userId: string, code: string, sql: Sql = getSql(
 /* Commands                                                            */
 /* ------------------------------------------------------------------ */
 
-const GAME_COMMANDS = new Set(['see', 'bet', 'pack', 'show', 'sideshow_request', 'sideshow_respond', 'reveal', 'set_joker']);
+const GAME_COMMANDS = new Set(['see', 'bet', 'pack', 'show', 'sideshow_request', 'sideshow_respond', 'reveal', 'set_joker', 'allin']);
 
 export async function runCommand(userId: string, code: string, cmd: Command, sql: Sql = getSql()): Promise<ClientView> {
   // Process overdue deadlines first in their own transaction so they persist even if this command is rejected.
@@ -483,6 +497,7 @@ async function runGameCommand(ctx: Ctx, cmd: Command) {
     case 'set_joker': action = { type: 'set_joker', index: cmd.index, as: cmd.as }; break;
     case 'bet': action = { type: 'bet', raise: cmd.raise }; break;
     case 'pack': action = { type: 'pack' }; break;
+    case 'allin': action = { type: 'allin' }; break;
     case 'show': action = { type: 'show' }; break;
     case 'sideshow_request': action = { type: 'sideshow_request' }; break;
     case 'sideshow_respond': action = { type: 'sideshow_respond', accept: cmd.accept }; break;
@@ -516,8 +531,8 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
       room.settings = cmd.settings;
       if (cmd.roomName !== undefined) room.name = cmd.roomName || null;
       if (resetChips) {
-        await tx`update players set chip_balance = ${cmd.settings.startingChips} where room_id = ${room.id}`;
-        ctx.players.forEach((p) => (p.chip_balance = cmd.settings.startingChips));
+        await tx`update players set chip_balance = ${cmd.settings.startingChips}, total_buy_in = ${cmd.settings.startingChips} where room_id = ${room.id}`;
+        ctx.players.forEach((p) => { p.chip_balance = cmd.settings.startingChips; p.total_buy_in = cmd.settings.startingChips; });
       }
       return;
     }
@@ -532,7 +547,7 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
       if (cmd.playerId === me.id) throw new AppError('NOT_ALLOWED', 'You cannot remove yourself.');
       const target = ctx.players.find((p) => p.id === cmd.playerId);
       if (!target) throw new AppError('NOT_FOUND', 'That player is not in the room.');
-      await tx`delete from players where id = ${target.id}`;
+      await tx`update players set has_left = true, kicked = true, seat_number = null, is_ready = false where id = ${target.id}`;
       ctx.players = ctx.players.filter((p) => p.id !== target.id);
       return;
     }
@@ -556,7 +571,8 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
         next.is_host = true;
       }
       await tx`update rooms set host_player_id = ${room.host_player_id} where id = ${room.id}`;
-      await tx`delete from players where id = ${me.id}`;
+      // Keep the row (chips + buy-in history) so a rejoin can't be used to reset your stack.
+      await tx`update players set has_left = true, seat_number = null, is_ready = false, is_host = false where id = ${me.id}`;
       ctx.players = others;
       return;
     }
@@ -564,9 +580,16 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
       if (ctx.engine && roundActive(ctx) && ctx.engine.players.some((p) => p.id === me.id)) {
         throw new AppError('NOT_ALLOWED', 'You can top up between rounds.');
       }
-      if (me.chip_balance >= room.settings.startingChips) throw new AppError('NOT_ALLOWED', 'You already have a full stack.');
-      await tx`update players set chip_balance = ${room.settings.startingChips} where id = ${me.id}`;
-      me.chip_balance = room.settings.startingChips;
+      const full = room.settings.startingChips;
+      if (me.chip_balance >= full) throw new AppError('NOT_ALLOWED', 'You already have a full stack.');
+      if (me.rebuys >= room.settings.maxRebuys) {
+        throw new AppError('NOT_ALLOWED', room.settings.maxRebuys === 0 ? 'Top-ups are turned off at this table.' : `No top-ups left (limit ${room.settings.maxRebuys}).`);
+      }
+      const added = full - me.chip_balance;
+      await tx`update players set chip_balance = ${full}, total_buy_in = total_buy_in + ${added}, rebuys = rebuys + 1 where id = ${me.id}`;
+      me.chip_balance = full;
+      me.total_buy_in += added;
+      me.rebuys += 1;
       return;
     }
     case 'close_room': {
@@ -612,7 +635,7 @@ async function memberOf(tx: Tx | Sql, userId: string, code: string) {
   const rows = await tx`
     select p.id, p.display_name, r.id as room_id, r.status, r.expires_at
     from players p join rooms r on r.id = p.room_id
-    where r.room_code = ${code} and p.auth_user_id = ${userId}`;
+    where r.room_code = ${code} and p.auth_user_id = ${userId} and not p.has_left`;
   if (!rows.length) {
     const exists = await tx`select 1 from rooms where room_code = ${code}`;
     throw exists.length ? new AppError('FORBIDDEN', 'You are not a member of this room.') : new AppError('NOT_FOUND', 'That room does not exist.');

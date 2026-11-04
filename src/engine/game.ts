@@ -64,6 +64,7 @@ export function startRound(input: StartRoundInput): StepOutput {
     seen: false,
     folded: false,
     sideshowRequests: 0,
+    allIn: p.balance - rules.boot === 0,
   }));
   const state: EngineState = {
     round: input.round,
@@ -88,20 +89,28 @@ export function startRound(input: StartRoundInput): StepOutput {
   const events: PublicEvent[] = [];
   push(state, events, { type: 'round_started' });
   for (const p of players) push(state, events, { type: 'boot', playerId: p.id, amount: rules.boot });
-  // first turn: first funded seat after the dealer
-  const after = players.find((p) => p.seat > input.dealerSeat) ?? players[0]!;
-  assignTurn(state, after.id, input.now, events);
+  // first turn: first seat after the dealer that can still act
+  const startIdx = Math.max(0, players.findIndex((p) => p.seat > input.dealerSeat));
+  const ordered = [...players.slice(startIdx), ...players.slice(0, startIdx)];
+  if (!settleIfDone(state, events)) assignTurn(state, ordered.find((p) => !p.allIn)!.id, input.now, events);
   return { state, events };
 }
 
-function nextActiveAfter(state: EngineState, id: string): EnginePlayer {
+/** Next player who can still act (not packed, not all-in). */
+function nextActorAfter(state: EngineState, id: string): EnginePlayer {
   const n = state.players.length;
   const i = state.players.findIndex((p) => p.id === id);
   for (let k = 1; k <= n; k++) {
     const p = state.players[(i + k) % n]!;
-    if (!p.folded) return p;
+    if (!p.folded && !p.allIn) return p;
   }
-  throw new Error('no active players');
+  throw new Error('no players who can act');
+}
+
+/** Pass the turn on (or end the round if nobody can act any more). */
+function advance(state: EngineState, fromId: string, now: number, events: PublicEvent[]) {
+  if (settleIfDone(state, events)) return;
+  assignTurn(state, nextActorAfter(state, fromId).id, now, events);
 }
 function previousActiveBefore(state: EngineState, id: string): EnginePlayer {
   const n = state.players.length;
@@ -113,41 +122,33 @@ function previousActiveBefore(state: EngineState, id: string): EnginePlayer {
   throw new Error('no active players');
 }
 
-/** Can this player do anything but pack on their turn? */
-function mustPack(state: EngineState, p: EnginePlayer): boolean {
-  const call = chaalCost(state.rules, state.stake, p.seen);
-  if (p.balance >= call) return false;
-  if (activePlayers(state).length === 2 && showAllowed(state, p) && showCost(state, p) <= p.balance) return false;
-  return true;
-}
-
-function assignTurn(state: EngineState, id: string, now: number, events: PublicEvent[]) {
-  let cur = getPlayer(state, id)!;
-  // Players unable to afford any betting action are folded automatically ("broke pack").
-  for (let guard = 0; guard < state.players.length; guard++) {
-    if (!mustPack(state, cur)) break;
-    cur.folded = true;
-    push(state, events, { type: 'broke_pack', playerId: cur.id });
-    if (finishIfLastStanding(state, events)) return;
-    cur = nextActiveAfter(state, cur.id);
-  }
-  state.turnId = cur.id;
+function assignTurn(state: EngineState, id: string, now: number, _events: PublicEvent[]) {
+  state.turnId = id;
   state.turnDeadline = now + state.rules.turnSeconds * 1000;
   state.phase = 'betting';
   state.pending = null;
 }
 
-function finishIfLastStanding(state: EngineState, events: PublicEvent[]): boolean {
+/** Ends the round when one player is left, or when nobody (but at most one player) can still bet. */
+function settleIfDone(state: EngineState, events: PublicEvent[]): boolean {
+  if (state.phase === 'ended') return true;
   const alive = activePlayers(state);
-  if (alive.length !== 1) return false;
-  const w = alive[0]!;
-  endRound(state, events, {
-    reason: 'last_standing',
-    pot: state.pot,
-    payouts: [{ playerId: w.id, amount: state.pot, share: 'all' }],
-    reveal: [],
-  });
-  return true;
+  if (alive.length === 1) {
+    const w = alive[0]!;
+    endRound(state, events, {
+      reason: 'last_standing',
+      pot: state.pot,
+      payouts: [{ playerId: w.id, amount: state.pot, share: 'all' }],
+      reveal: [],
+    });
+    return true;
+  }
+  const able = alive.filter((p) => !p.allIn);
+  if (alive.length >= 2 && able.length <= 1 && alive.some((p) => p.allIn)) {
+    settlePots(state, events, 'showdown');
+    return true;
+  }
+  return false;
 }
 
 function endRound(state: EngineState, events: PublicEvent[], result: RoundResult) {
@@ -188,6 +189,7 @@ function pay(state: EngineState, p: EnginePlayer, amount: number) {
   p.balance -= amount;
   p.committed += amount;
   state.pot += amount;
+  if (p.balance === 0) p.allIn = true;
 }
 
 export function applyAction(prev: EngineState, playerId: string, action: Action, now: number): StepOutput {
@@ -204,12 +206,6 @@ export function applyAction(prev: EngineState, playerId: string, action: Action,
       if (me.seen) throw new EngineError('ALREADY_SEEN', 'You have already seen your cards.');
       me.seen = true;
       push(state, events, { type: 'seen', playerId });
-      // A broke player who becomes seen on their turn may now be unable to continue.
-      if (state.phase === 'betting' && state.turnId === playerId && mustPack(state, me)) {
-        me.folded = true;
-        push(state, events, { type: 'broke_pack', playerId });
-        if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
-      }
       return { state, events };
     }
     case 'set_joker': {
@@ -248,24 +244,35 @@ export function applyAction(prev: EngineState, playerId: string, action: Action,
       if (raise) state.stake = raisedStake(state.rules, state.stake);
       push(state, events, { type: raise ? 'raise' : 'bet', playerId, amount: cost, stake: state.stake });
       me.last = { type: raise ? 'raise' : 'bet', amount: cost, stake: state.stake };
-      assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+      advance(state, playerId, now, events);
+      return { state, events };
+    }
+    case 'allin': {
+      const call = betCost(state.rules, state.stake, me, false);
+      if (me.balance <= 0) throw new EngineError('INSUFFICIENT_BALANCE', 'You have no chips left.');
+      if (me.balance >= call) throw new EngineError('INVALID_BET', 'You can afford a normal bet, so all-in is not needed.');
+      const amount = me.balance;
+      pay(state, me, amount);
+      push(state, events, { type: 'allin', playerId, amount, stake: state.stake });
+      me.last = { type: 'allin', amount };
+      advance(state, playerId, now, events);
       return { state, events };
     }
     case 'pack': {
       me.folded = true;
       me.last = { type: 'pack' };
       push(state, events, { type: 'pack', playerId });
-      if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+      advance(state, playerId, now, events);
       return { state, events };
     }
     case 'show': {
       if (!showAllowed(state, me)) throw new EngineError('SHOW_NOT_ALLOWED', 'A show needs exactly two players left' + (state.rules.showEligibility === 'seen_only' ? ' and you must have seen your cards.' : '.'));
-      const cost = showCost(state, me);
+      // A short stack may show for whatever they have left (all-in show).
+      const cost = Math.min(showCost(state, me), me.balance);
       pay(state, me, cost);
       push(state, events, { type: 'show', playerId, amount: cost });
       me.last = { type: 'show', amount: cost };
-      const other = activePlayers(state).find((p) => p.id !== playerId)!;
-      doShowdown(state, events, [me, other], playerId);
+      settlePots(state, events, 'show', playerId);
       return { state, events };
     }
     case 'sideshow_request': {
@@ -290,7 +297,7 @@ function resolveSideshow(state: EngineState, events: PublicEvent[], accept: bool
   const res = getPlayer(state, pend.responderId)!;
   if (!accept) {
     push(state, events, { type: timedOut ? 'sideshow_timeout' : 'sideshow_declined', playerId: res.id, otherId: req.id });
-    assignTurn(state, nextActiveAfter(state, req.id).id, now, events);
+    advance(state, req.id, now, events);
     return;
   }
   push(state, events, { type: 'sideshow_accepted', playerId: res.id, otherId: req.id });
@@ -326,23 +333,51 @@ function resolveSideshow(state: EngineState, events: PublicEvent[], accept: bool
     loser.folded = true;
     loser.last = { type: 'pack' };
     push(state, events, { type: 'pack', playerId: loser.id });
-    if (finishIfLastStanding(state, events)) return;
+    if (settleIfDone(state, events)) return;
   }
-  assignTurn(state, nextActiveAfter(state, req.id).id, now, events);
+  advance(state, req.id, now, events);
 }
 
-function doShowdown(state: EngineState, events: PublicEvent[], entrants: EnginePlayer[], challengerId?: string) {
+/**
+ * Showdown with side pots. Pots are layered by what each live player put in: everyone who is still in
+ * competes for the main pot up to the smallest contribution, and so on; chips above the highest live
+ * contribution (e.g. from packed players) go to the top pot.
+ */
+function settlePots(state: EngineState, events: PublicEvent[], reason: 'show' | 'showdown', challengerId?: string) {
   const v = getVariation(state.variation);
-  const entries = entrants.map((p) => ({ playerId: p.id, cards: state.hands[p.id]!, assign: state.assign[p.id] }));
-  const payouts: Payout[] = v.settle(entries, state.pot, state.ctx, state.rules, challengerId);
+  const alive = activePlayers(state);
+  // Layered side pots only matter when someone is all-in; in a normal show the winner takes the whole pot.
+  const layered = alive.some((p) => p.allIn);
+  const levels = layered ? [...new Set(alive.map((p) => p.committed))].sort((a, b) => a - b) : [Math.max(...alive.map((p) => p.committed))];
+  const won = new Map<string, Payout>();
+  const pots: NonNullable<RoundResult['pots']> = [];
+  let prev = 0;
+  levels.forEach((L, li) => {
+    const top = li === levels.length - 1;
+    let amount = 0;
+    for (const p of state.players) amount += Math.max(0, (top ? p.committed : Math.min(p.committed, L)) - Math.min(p.committed, prev));
+    prev = L;
+    const eligible = layered ? alive.filter((p) => p.committed >= L) : alive;
+    if (amount <= 0 || !eligible.length) return;
+    const entries = eligible.map((p) => ({ playerId: p.id, cards: state.hands[p.id]!, assign: state.assign[p.id] }));
+    const ch = challengerId && eligible.some((p) => p.id === challengerId) ? challengerId : undefined;
+    const paid = v.settle(entries, amount, state.ctx, state.rules, ch);
+    for (const x of paid) {
+      const cur = won.get(x.playerId);
+      if (cur) cur.amount += x.amount;
+      else won.set(x.playerId, { ...x });
+    }
+    pots.push({ amount, eligible: eligible.map((p) => p.id), winners: paid.map((x) => x.playerId) });
+  });
   endRound(state, events, {
-    reason: 'show',
+    reason,
     pot: state.pot,
-    payouts,
+    pots,
+    payouts: [...won.values()],
     challengerId,
-    reveal: entries.map((e) => {
-      const rh = resolveHand(e.cards, state.ctx, e.assign);
-      return { playerId: e.playerId, cards: e.cards, label: v.score(e.cards, state.ctx, e.assign).label, jokerAs: rh.jokerAs };
+    reveal: alive.map((p) => {
+      const rh = resolveHand(state.hands[p.id]!, state.ctx, state.assign[p.id]);
+      return { playerId: p.id, cards: state.hands[p.id]!, label: v.score(state.hands[p.id]!, state.ctx, state.assign[p.id]).label, jokerAs: rh.jokerAs };
     }),
   });
 }
@@ -359,7 +394,7 @@ export function processTimeout(prev: EngineState, now: number): StepOutput | nul
     p.folded = true;
     p.last = { type: 'pack' };
     push(state, events, { type: 'timeout_pack', playerId: p.id });
-    if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, p.id).id, now, events);
+    advance(state, p.id, now, events);
   }
   return { state, events };
 }
@@ -371,12 +406,13 @@ export interface LegalActions {
   bet: { cost: number; raiseCost: number | null; raiseTo: number | null } | null;
   pack: boolean;
   sideshow: { targetId: string; cost: number } | null;
-  show: { cost: number } | null;
+  show: { cost: number; allIn: boolean } | null;
+  allIn: { amount: number } | null;
   respond: boolean;
 }
 
 export function legalActions(state: EngineState, playerId: string): LegalActions {
-  const none: LegalActions = { see: false, bet: null, pack: false, sideshow: null, show: null, respond: false };
+  const none: LegalActions = { see: false, bet: null, pack: false, sideshow: null, show: null, allIn: null, respond: false };
   const me = getPlayer(state, playerId);
   if (!me || me.folded || state.phase === 'ended') return none;
   const out = { ...none, see: !me.seen };
@@ -396,7 +432,10 @@ export function legalActions(state: EngineState, playerId: string): LegalActions
       out.sideshow = { targetId: t.id, cost: chaalCost(state.rules, state.stake, true) };
     }
   }
-  if (showAllowed(state, me) && showCost(state, me) <= me.balance) out.show = { cost: showCost(state, me) };
+  if (me.balance > 0 && me.balance < call) out.allIn = { amount: me.balance };
+  if (showAllowed(state, me) && (showCost(state, me) === 0 || me.balance > 0)) {
+    out.show = { cost: Math.min(showCost(state, me), me.balance), allIn: me.balance < showCost(state, me) };
+  }
   return out;
 }
 
@@ -431,6 +470,7 @@ export function publicView(state: EngineState, dealerSeat = state.dealerSeat) {
       committed: p.committed,
       seen: p.seen,
       folded: p.folded,
+      allIn: !!p.allIn,
       last: p.last ?? null,
     })),
     result: state.result,
@@ -443,14 +483,15 @@ export function privateView(state: EngineState, playerId: string) {
   const me = getPlayer(state, playerId);
   const ended = state.phase === 'ended';
   // Your own cards are visible to you once you've looked, and always once the round is over.
-  const canSee = !!me && (ended || (!me.folded && me.seen));
+  const hand = state.hands[playerId];
+  const canSee = !!me && !!hand && (ended || (!me.folded && me.seen));
   const v = getVariation(state.variation);
   return {
     inRound: !!me,
     seen: !!me?.seen,
     folded: !!me?.folded,
-    cards: me && canSee ? state.hands[playerId]! : null,
-    handLabel: me && canSee ? v.score(state.hands[playerId]!, state.ctx, state.assign[playerId]).label : null,
+    cards: me && canSee ? hand! : null,
+    handLabel: me && canSee ? v.score(hand!, state.ctx, state.assign[playerId]).label : null,
     jokers: me && canSee ? jokerView(state, playerId) : null,
     legal: legalActions(state, playerId),
     notes: state.notes[playerId] ?? [],
@@ -489,18 +530,18 @@ export function leaveRound(prev: EngineState, playerId: string, now: number): St
   me.folded = true;
   me.last = { type: 'pack' };
   push(state, events, { type: 'left', playerId });
-  if (finishIfLastStanding(state, events)) return { state, events };
+  if (settleIfDone(state, events)) return { state, events };
   if (pend && pend.responderId === playerId) {
     // The responder left: treat as a declined sideshow.
     state.pending = pend;
     const req = getPlayer(state, pend.requesterId)!;
     push(state, events, { type: 'sideshow_declined', playerId, otherId: req.id });
-    assignTurn(state, nextActiveAfter(state, req.id).id, now, events);
+    advance(state, req.id, now, events);
   } else if (pend && pend.requesterId === playerId) {
     // The requester left: the request is void (their fee stays in the pot).
-    assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+    advance(state, playerId, now, events);
   } else if (wasTurn) {
-    assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+    advance(state, playerId, now, events);
   }
   return { state, events };
 }

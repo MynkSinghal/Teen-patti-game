@@ -20,7 +20,7 @@ interface Props {
   dim?: boolean;
 }
 
-const DIM = { xs: 'w-5 h-7 rounded-[3px]', sm: 'w-9 h-[52px] rounded-md', md: 'w-[58px] h-[84px] rounded-lg', lg: 'w-[76px] h-[110px] rounded-lg ls:w-[58px] ls:h-[84px]' };
+const DIM = { xs: 'w-5 h-7 rounded-[3px]', sm: 'w-9 h-[52px] rounded-md', md: 'w-[58px] h-[84px] rounded-lg', lg: 'w-[76px] h-[110px] rounded-lg ls:w-[58px] ls:h-[84px] short:w-[50px] short:h-[72px]' };
 const TXT = { xs: 'text-[0px]', sm: 'text-[13px]', md: 'text-lg', lg: 'text-2xl' };
 
 export function PlayingCard({ card, faceDown, size = 'md', delay = 0, joker, dim }: Props) {

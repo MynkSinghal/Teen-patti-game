@@ -261,23 +261,100 @@ describe('timeouts', () => {
   });
 });
 
-describe('zero balance policy', () => {
-  it('auto-packs a player who cannot afford a chaal; never negative', () => {
-    let s = mkRound(3, { balance: 25 }); // after boot 15 each
-    s = act(s, 'p0', { type: 'bet' }); // blind 10 (balance 5)
-    s = act(s, 'p1', { type: 'see' }); // p1 is on turn: seen cost 20 > 15 => auto broke pack
-    expect(s.players[1]!.folded).toBe(true);
-    s = act(s, 'p2', { type: 'pack' });
+describe('zero balance policy: all-in and side pots', () => {
+  it('a short stack gets an all-in option instead of being forced out; balances never go negative', () => {
+    let s = mkRound(3, { balance: 25 }); // 15 after boot
+    s = act(s, 'p0', { type: 'see' });
+    const l = legalActions(s, 'p0');
+    expect(l.bet).toBeNull(); // chaal costs 20 > 15
+    expect(l.allIn).toEqual({ amount: 15 });
+    expect(l.pack).toBe(true);
+    expect(code(() => act(s, 'p0', { type: 'bet' }))).toBe('INSUFFICIENT_BALANCE');
+    s = act(s, 'p0', { type: 'allin' });
+    expect(s.players[0]!.balance).toBe(0);
+    expect(s.players[0]!.allIn).toBe(true);
+    expect(s.players.every((p) => p.balance >= 0)).toBe(true);
+    expect(s.turnId).toBe('p1'); // play continues for the others
+  });
+  it('all-in is refused when you can afford a normal bet', () => {
+    const s = mkRound(3);
+    expect(code(() => act(s, 'p0', { type: 'allin' }))).toBe('INVALID_BET');
+  });
+  it('exactly zero after a bet marks you all-in automatically', () => {
+    let s = mkRound(3, { balance: 20 }); // 10 after boot; blind chaal costs 10
+    s = act(s, 'p0', { type: 'bet' });
+    expect(s.players[0]!.balance).toBe(0);
+    expect(s.players[0]!.allIn).toBe(true);
+  });
+  it('round goes to an automatic showdown when at most one player can still bet', () => {
+    let s = mkRound(3, { balance: 25, hands: ['AS KH 3D', '2S 3H 5D', '4S 6H 9D'] });
+    s = act(s, 'p0', { type: 'see' });
+    s = act(s, 'p0', { type: 'allin' }); // p0 15 more -> committed 25
+    s = act(s, 'p1', { type: 'see' });
+    s = act(s, 'p1', { type: 'allin' }); // p1 committed 25
+    // p2 is the only one who can still act and everyone else is all-in -> showdown right away
+    expect(s.phase).toBe('ended');
+    expect(s.result!.reason).toBe('showdown');
+    expect(s.result!.reveal.map((r) => r.playerId)).toEqual(['p0', 'p1', 'p2']);
+    expect(total(s)).toBe(75);
+  });
+  it('side pots: a short all-in can only win what each player matched', () => {
+    let s = mkRound(3, { balance: 1000, hands: ['AS AH AD', '9S 4H 2D', '5S 3H KD'] });
+    s.players[0]!.balance = 15; // short: after boot (committed 10) and seen, a chaal costs 20
+    s = act(s, 'p0', { type: 'see' });
+    s = act(s, 'p0', { type: 'allin' }); // +15 -> committed 25
+    s = act(s, 'p1', { type: 'bet', raise: true }); // blind raise: stake 20 -> +20 (committed 30)
+    s = act(s, 'p2', { type: 'bet', raise: true }); // stake 40 -> +40 (committed 50)
+    s = act(s, 'p1', { type: 'bet' }); // blind +40 (committed 70)
+    s = act(s, 'p2', { type: 'pack' }); // leaves all-in p0 and p1 -> automatic showdown
+    expect(s.phase).toBe('ended');
+    expect(s.result!.reason).toBe('showdown');
+    const pots = s.result!.pots!;
+    expect(pots.map((p) => [p.amount, p.eligible])).toEqual([[75, ['p0', 'p1']], [70, ['p1']]]);
+    // p0 holds a trail of aces: wins the main pot (25 from each of three players) but not the side pot
+    expect(s.result!.payouts.find((p) => p.playerId === 'p0')!.amount).toBe(75);
+    expect(s.result!.payouts.find((p) => p.playerId === 'p1')!.amount).toBe(70);
+    expect(s.pot).toBe(0);
+    expect(total(s)).toBe(2025); // 25 + 1000 + 1000: nothing created or lost
+    expect(s.players.every((p) => p.balance >= 0)).toBe(true);
+  });
+  it('all-in show: a short stack may show for whatever they have left', () => {
+    let s = mkRound(3, { balance: 1000, hands: ['2S 3H 5D', 'AS KH 3D', '4S 6H 9D'] });
+    s = act(s, 'p0', { type: 'pack' });
+    s.players[1]!.balance = 4; // blind show would cost 10
+    const l = legalActions(s, 'p1');
+    expect(l.show).toEqual({ cost: 4, allIn: true });
+    s = act(s, 'p1', { type: 'show' });
     expect(s.phase).toBe('ended');
     expect(s.players.every((p) => p.balance >= 0)).toBe(true);
   });
-  it('cannot bet more than balance', () => {
-    let s = mkRound(3, { balance: 60 }); // 50 after boot
-    s = act(s, 'p0', { type: 'see' });
-    expect(legalActions(s, 'p0').bet).toEqual({ cost: 20, raiseCost: 40, raiseTo: 20 });
-    s = act(s, 'p0', { type: 'bet', raise: true }); // stake 20, pays 40 -> balance 10
-    expect(s.players[0]!.balance).toBe(10);
-    expect(legalActions(s, 'p0').bet).toBeNull();
+  it('chips are conserved through random play with all-ins (property)', () => {
+    fc.assert(fc.property(fc.integer(), fc.integer({ min: 3, max: 6 }), (seed, n) => {
+      const rng = seededRng(seed);
+      let s = mkRound(n, { balance: 60 + rng.int(200) });
+      // uneven stacks so all-ins really happen
+      s.players.forEach((p, i) => { if (i % 2 === 0) { s.pot += 0; p.balance = Math.min(p.balance, 15 + rng.int(60)); } });
+      const start = total(s);
+      let t = NOW;
+      for (let i = 0; i < 500 && s.phase !== 'ended'; i++) {
+        t += 1000;
+        if (s.phase === 'sideshow') { s = act(s, s.pending!.responderId, { type: 'sideshow_respond', accept: rng.int(2) === 0 }, t); continue; }
+        const id = s.turnId!;
+        const l = legalActions(s, id);
+        const opts: Action[] = [{ type: 'pack' }];
+        if (l.see) opts.push({ type: 'see' });
+        if (l.bet) opts.push({ type: 'bet' });
+        if (l.bet?.raiseCost) opts.push({ type: 'bet', raise: true });
+        if (l.allIn) opts.push({ type: 'allin' }, { type: 'allin' });
+        if (l.sideshow) opts.push({ type: 'sideshow_request' });
+        if (l.show) opts.push({ type: 'show' });
+        const a = opts[rng.int(opts.length)]!;
+        s = act(s, id, a, t);
+        if (a.type === 'see' && s.phase !== 'ended' && s.turnId === id) s = act(s, id, { type: 'pack' }, t);
+        if (total(s) !== start || s.players.some((p) => p.balance < 0)) return false;
+      }
+      return s.phase === 'ended' ? total(s) === start && s.pot === 0 : true;
+    }), { numRuns: 400 });
   });
 });
 

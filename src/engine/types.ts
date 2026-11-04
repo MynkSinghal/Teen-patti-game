@@ -62,6 +62,8 @@ export interface EnginePlayer {
   seen: boolean;
   folded: boolean;
   sideshowRequests: number;
+  /** Put every remaining chip in; no more decisions, plays to showdown for the pots they contributed to. */
+  allIn?: boolean;
   /** Most recent public action, for the table UI ("Raised to 40"). */
   last?: { type: string; amount?: number; stake?: number } | null;
 }
@@ -79,8 +81,10 @@ export interface Payout {
 }
 
 export interface RoundResult {
-  reason: 'last_standing' | 'show';
+  reason: 'last_standing' | 'show' | 'showdown';
   pot: number;
+  /** Main pot and side pots, in order. Present when decided by a showdown. */
+  pots?: { amount: number; eligible: string[]; winners: string[] }[];
   payouts: Payout[];
   /** Hands that were legitimately revealed by a show. */
   /** jokerAs[i] = what the joker at card i stood for (null for natural cards). */
@@ -105,6 +109,7 @@ export interface PublicEvent {
     | 'sideshow_timeout'
     | 'show'
     | 'left'
+    | 'allin'
     | 'reveal'
     | 'round_ended';
   playerId?: string;
@@ -156,6 +161,7 @@ export type Action =
   | { type: 'show' }
   | { type: 'sideshow_request' }
   | { type: 'sideshow_respond'; accept: boolean }
+  | { type: 'allin' }
   | { type: 'reveal' }
   | { type: 'set_joker'; index: number; as: Card | null };
 

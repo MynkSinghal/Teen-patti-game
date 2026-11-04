@@ -1,7 +1,31 @@
 @import 'tailwindcss';
 
-/* phone held sideways (short viewport) */
-@custom-variant ls (@media (orientation: landscape) and (max-height: 620px));
+/* "landscape layout": a phone held sideways, a wide desktop window, or the table rotated to landscape in portrait */
+@custom-variant ls {
+  @media (orientation: landscape) and (max-height: 620px) { @slot; }
+  @media (orientation: landscape) and (min-width: 900px) { @slot; }
+  &:where([data-fl] *) { @slot; }
+}
+/* short landscape screens (most phones sideways) */
+@custom-variant short {
+  @media (orientation: landscape) and (max-height: 400px) { @slot; }
+  &:where([data-fl] *) { @slot; }
+}
+
+:root { --app-h: 100dvh; }
+/* Forced landscape: on a phone held in portrait, the table is drawn as a landscape screen turned 90 degrees. */
+html[data-fl] { --app-h: 100dvw; }
+html[data-fl] body { overflow: hidden; }
+html[data-fl] .fl-root {
+  position: fixed;
+  top: 0;
+  left: 100%;
+  width: 100dvh;
+  height: 100dvw;
+  transform: rotate(90deg);
+  transform-origin: 0 0;
+  overflow: hidden;
+}
 
 @theme {
   --color-ink: #0a0d0c;

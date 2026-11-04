@@ -374,4 +374,94 @@ d('service (postgres)', () => {
     expect(json).not.toMatch(/"suit"|"cards"|sideshow_result|yourCards/);
     expect(await errCode(getHistory(randomUUID(), code, sql))).toBe('FORBIDDEN');
   });
+
+  it('leaving and rejoining restores your chips and buy-in history (no free fresh stack)', async () => {
+    const { code, us } = await table(4);
+    let v = await run(us[0]!, code, { type: 'start_round' });
+    const ids = await idMap(us, code);
+    // p3 plays one hand, loses chips, leaves, comes back
+    const t = turnUser(us, v, ids);
+    v = await run(t, code, { type: 'bet', gameVersion: gameOf(v).version });
+    const leaver = us.find((u) => u !== t && u !== us[0]!)!;
+    const before = (await getState(leaver, code, sql)).room.players.find((p) => p.id === ids[leaver])!.balance;
+    await run(leaver, code, { type: 'leave' });
+    expect(await errCode(getState(leaver, code, sql))).toBe('FORBIDDEN');
+    // finish the round so they can rejoin comfortably
+    const others = us.filter((u) => u !== leaver);
+    let st = await getState(others[0]!, code, sql);
+    while (gameOf(st).phase !== 'ended') {
+      st = await run(turnUser(others, st, ids), code, { type: 'pack', gameVersion: gameOf(st).version });
+    }
+    await joinRoom(leaver, code, 'Back', sql);
+    const me = (await getState(leaver, code, sql)).room.players.find((p) => p.id === ids[leaver])!; // same player row
+    expect(me.balance).toBe(before);
+    expect(me.buyIn).toBe(1000);
+    expect(me.rebuys).toBe(0);
+    expect(me.balance).toBeLessThan(1000 + 1); // not reset to a fresh 1000 + stack
+  });
+
+  it('rebuys are limited, counted, and tracked in net profit', async () => {
+    const { code, us } = await table(3, { maxRebuys: 1, boot: 100, startingChips: 1000 });
+    // poor player: 40 chips left, between rounds
+    await sql`update players set chip_balance = 40 where auth_user_id = ${us[1]!}`;
+    let v = await run(us[1]!, code, { type: 'rebuy' });
+    let me = v.room.players.find((p) => p.id === v.me.playerId)!;
+    expect(me.balance).toBe(1000);
+    expect(me.buyIn).toBe(1960); // 1000 + 960 top-up
+    expect(me.rebuys).toBe(1);
+    expect(me.profit).toBe(1000 - 1960);
+    await sql`update players set chip_balance = 10 where auth_user_id = ${us[1]!}`;
+    expect(await errCode(run(us[1]!, code, { type: 'rebuy' }))).toBe('NOT_ALLOWED'); // limit reached
+    // no rebuys at all
+    const t2 = await table(3, { maxRebuys: 0 });
+    await sql`update players set chip_balance = 5 where auth_user_id = ${t2.us[1]!}`;
+    expect(await errCode(run(t2.us[1]!, t2.code, { type: 'rebuy' }))).toBe('NOT_ALLOWED');
+    v = await getState(us[0]!, code, sql);
+    me = v.room.players.find((p) => p.name === 'P1')!;
+    expect(me.rebuys).toBe(1);
+  });
+
+  it('profit follows the chips, including chips currently in the pot', async () => {
+    const { code, us } = await table(3);
+    let v = await run(us[0]!, code, { type: 'start_round' });
+    const ids = await idMap(us, code);
+    for (const p of v.room.players) expect(p.profit).toBe(0); // boot in the pot still counts as theirs
+    for (let i = 0; i < 2; i++) v = await run(turnUser(us, v, ids), code, { type: 'pack', gameVersion: gameOf(v).version });
+    const profits = v.room.players.map((p) => p.profit).sort((a, b) => a - b);
+    expect(profits).toEqual([-10, -10, 20]);
+  });
+
+  it('a removed (kicked) player cannot rejoin', async () => {
+    const { code, us } = await table(3);
+    const ids = await idMap(us, code);
+    await run(us[0]!, code, { type: 'kick', playerId: ids[us[2]!] });
+    expect(await errCode(joinRoom(us[2]!, code, 'Again', sql))).toBe('FORBIDDEN');
+    expect(await errCode(getState(us[2]!, code, sql))).toBe('FORBIDDEN');
+  });
+
+  it('all-in through the database: short stack goes all-in, others continue, side pot is paid correctly', async () => {
+    const { code, us } = await table(3, { boot: 50, startingChips: 1000 });
+    await sql`update players set chip_balance = 160 where auth_user_id = ${us[1]!}`; // short after boot
+    let v = await run(us[0]!, code, { type: 'start_round' });
+    const ids = await idMap(us, code);
+    // force known hands: the short stack (us[1]) holds the best hand
+    await sql`update player_hands set cards = ${sql.json([{ rank: 14, suit: 'S' }, { rank: 14, suit: 'H' }, { rank: 14, suit: 'D' }])}
+      where player_id = ${ids[us[1]!] as string} and game_id = (select id from games order by created_at desc limit 1)`;
+    // play until the short stack has to go all-in or the round ends
+    let guard = 0;
+    while (gameOf(v).phase !== 'ended' && guard++ < 30) {
+      const u = turnUser(us, v, ids);
+      const priv = (await getState(u, code, sql)).me.private!;
+      const ver = gameOf(v).version;
+      if (priv.legal.allIn) v = await run(u, code, { type: 'allin', gameVersion: ver });
+      else if (priv.legal.bet?.raiseCost && u !== us[1]) v = await run(u, code, { type: 'bet', raise: true, gameVersion: ver });
+      else if (priv.legal.bet) v = await run(u, code, { type: 'bet', gameVersion: ver });
+      else v = await run(u, code, { type: 'pack', gameVersion: ver });
+      if (guard > 12) v = await run(turnUser(us, v, ids), code, { type: 'pack', gameVersion: gameOf(v).version }).catch(() => v);
+    }
+    const end = await getState(us[0]!, code, sql);
+    expect(gameOf(end).phase).toBe('ended');
+    expect(end.room.players.every((p) => p.balance >= 0)).toBe(true);
+    expect(end.room.players.reduce((s, p) => s + p.balance, 0)).toBe(2160 - 0); // chips conserved: 160 + 1000 + 1000
+  });
 });

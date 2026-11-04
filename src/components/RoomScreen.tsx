@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Activity, Loader2, Menu as MenuIcon, RefreshCw, RotateCw, WifiOff, X } from 'lucide-react';
 import { useGameSfx } from '@/hooks/useGameSfx';
+import { useLs, usePhonePortrait } from '@/hooks/useLs';
 import { useRoom } from '@/hooks/useRoom';
 import { unlockAudio } from '@/lib/sound';
 import { useRoomStore } from '@/store/room';
@@ -19,7 +20,7 @@ import { StakeLadder } from './StakeLadder';
 import { Table } from './Table';
 
 function Centered({ children }: { children: React.ReactNode }) {
-  return <main className="grid min-h-dvh place-items-center px-6 text-center">{children}</main>;
+  return <main className="grid min-h-[var(--app-h)] place-items-center px-6 text-center">{children}</main>;
 }
 
 function JoinForm({ code, onJoin, busy }: { code: string; onJoin: (n: string) => void; busy: boolean }) {
@@ -68,37 +69,33 @@ function ConnectionBanner({ retry }: { retry: () => void }) {
   );
 }
 
-/** Phones play best sideways. Web pages can't force rotation, so nudge, and lock landscape where the browser allows it. */
+/** Web pages can't force a phone to rotate, so in portrait we draw the table in landscape for you and say so. */
 function RotateHint({ active }: { active: boolean }) {
-  const [portrait, setPortrait] = useState(false);
-  const [dismissed, setDismissed] = useState(true);
+  const forced = useUI((s) => s.forced);
+  const [shown, setShown] = useState(false);
   useEffect(() => {
-    try { setDismissed(sessionStorage.getItem('tp_rotate_dismissed') === '1'); } catch { setDismissed(false); }
-    const mq = window.matchMedia('(orientation: portrait) and (max-width: 700px)');
-    const on = () => setPortrait(mq.matches);
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  // Never leave it hanging around: hide it after a few seconds.
-  useEffect(() => {
-    if (!active || !portrait || dismissed) return;
-    const t = setTimeout(() => setDismissed(true), 9000);
+    if (!active || !forced) { setShown(false); return; }
+    let seen = false;
+    try { seen = sessionStorage.getItem('tp_rotate_seen') === '1'; } catch { /* ignore */ }
+    if (seen) return;
+    setShown(true);
+    try { sessionStorage.setItem('tp_rotate_seen', '1'); } catch { /* ignore */ }
+    const t = setTimeout(() => setShown(false), 7000);
     return () => clearTimeout(t);
-  }, [active, portrait, dismissed]);
-  if (!active || !portrait || dismissed) return null;
-  const goLandscape = async () => {
+  }, [active, forced]);
+  if (!shown) return null;
+  const goFullscreen = async () => {
     try {
       await document.documentElement.requestFullscreen?.();
       await (screen.orientation as unknown as { lock?: (o: string) => Promise<void> }).lock?.('landscape');
-    } catch { /* iOS Safari can't lock; the user can rotate manually */ }
+    } catch { /* iOS Safari can't lock orientation; turning the phone works */ }
   };
   return (
-    <div className="fixed inset-x-3 top-[58px] z-30 mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-gold/40 bg-panel/95 px-3 py-2 text-xs shadow-xl backdrop-blur" role="status" data-testid="rotate-hint">
+    <div className="fixed inset-x-3 top-12 z-30 mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-gold/40 bg-panel/95 px-3 py-2 text-xs shadow-xl backdrop-blur" role="status" data-testid="rotate-hint">
       <RotateCw size={18} className="shrink-0 text-gold" />
-      <span className="flex-1">Turn your phone sideways for the best table view.</span>
-      <button className="rounded-full bg-gold px-3 py-1 font-bold text-ink" onClick={goLandscape}>Go landscape</button>
-      <button aria-label="Dismiss" onClick={() => { setDismissed(true); try { sessionStorage.setItem('tp_rotate_dismissed', '1'); } catch { /* ignore */ } }}><X size={14} /></button>
+      <span className="flex-1">The table is shown sideways. Turn your phone to match for the full screen.</span>
+      <button className="rounded-full bg-gold px-3 py-1 font-bold text-ink" onClick={goFullscreen}>Fullscreen</button>
+      <button aria-label="Dismiss" onClick={() => setShown(false)}><X size={14} /></button>
     </div>
   );
 }
@@ -109,7 +106,7 @@ function MyMoney({ view }: { view: NonNullable<ReturnType<typeof useRoomStore.ge
   const bal = view.room.players.find((p) => p.id === view.me.playerId)?.balance ?? 0;
   if (!g || !mine) return null;
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl bg-panel-2 px-3 py-1.5 text-xs" data-testid="my-money">
+    <div className="flex items-center justify-between gap-2 rounded-xl bg-panel-2 px-3 py-1.5 text-xs short:py-1 short:text-[11px]" data-testid="my-money">
       <span className="text-muted">You've put in <b className="text-gold-soft tabular-nums" data-testid="my-committed">{mine.committed.toLocaleString()}</b></span>
       <span className="text-muted">Pot <b className="text-paper tabular-nums">{g.pot.toLocaleString()}</b></span>
       <span className="text-muted">Balance <b className="text-paper tabular-nums">{bal.toLocaleString()}</b></span>
@@ -122,6 +119,15 @@ export function RoomScreen({ code }: { code: string }) {
   const { phase, error, view, busy } = useRoomStore();
   const open = useUI((s) => s.open);
   useGameSfx(view);
+  const phonePortrait = usePhonePortrait();
+  const tableOn = !!view && (view.room.status === 'playing' || view.room.status === 'between') && !!view.room.game;
+  const forced = tableOn && phonePortrait;
+  useEffect(() => {
+    if (forced) document.documentElement.dataset.fl = '1';
+    else delete document.documentElement.dataset.fl;
+    useUI.getState().setForced(forced);
+    return () => { delete document.documentElement.dataset.fl; useUI.getState().setForced(false); };
+  }, [forced]);
 
   useEffect(() => {
     useUI.getState().init();
@@ -157,7 +163,7 @@ export function RoomScreen({ code }: { code: string }) {
   g?.players.forEach((p) => names.set(p.id, p.name));
 
   return (
-    <div className={`mx-auto flex min-h-dvh max-w-md flex-col ls:max-w-none ${showTable ? 'ls:h-dvh ls:max-h-dvh ls:min-h-0 ls:overflow-hidden' : ''}`}>
+    <div className={`fl-root mx-auto flex min-h-[var(--app-h)] max-w-md flex-col ls:max-w-none ${showTable ? 'ls:h-[var(--app-h)] ls:max-h-[var(--app-h)] ls:min-h-0 ls:overflow-hidden' : ''}`} data-testid="app-root">
       <ConnectionBanner retry={retry} />
       <Toast />
       <ChatBanner />

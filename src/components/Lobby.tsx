@@ -69,7 +69,7 @@ export function Lobby({ view, send, busy, mode = 'lobby' }: { view: ClientView; 
               {p.isHost && <Crown size={14} className="text-gold" aria-label="Host" />}
               {!p.connected && <WifiOff size={14} className="text-danger" aria-label="Disconnected" />}
               <span className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ${p.ready ? 'bg-felt text-paper' : 'bg-panel-2 text-muted'}`}>{p.ready ? 'Ready' : 'Not ready'}</span>
-              <span className="w-14 text-right text-xs tabular-nums text-gold-soft">{p.balance}</span>
+              <span className="w-16 text-right text-xs tabular-nums text-gold-soft" title="Chips now / net result">{p.balance}{p.profit !== 0 && <span className={`block text-[10px] ${p.profit > 0 ? 'text-gold-soft' : 'text-danger'}`}>{p.profit > 0 ? '+' : ''}{p.profit}</span>}</span>
               {me.isHost && !p.isHost && (
                 <button aria-label={`Remove ${p.name}`} className="p-1 text-muted hover:text-danger" disabled={busy} onClick={() => send({ type: 'kick', playerId: p.id })}>
                   <UserX size={16} />

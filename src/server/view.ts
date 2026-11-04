@@ -25,6 +25,10 @@ export interface PlayerRow {
   is_connected: boolean;
   is_ready: boolean;
   is_folded: boolean;
+  total_buy_in: number;
+  rebuys: number;
+  has_left: boolean;
+  kicked: boolean;
   player_status: 'active' | 'sitting_out';
 }
 export interface GameRow {
@@ -46,6 +50,11 @@ export interface PublicPlayer {
   connected: boolean;
   ready: boolean;
   inRound: boolean;
+  /** Total chips bought in (starting stack + top-ups). */
+  buyIn: number;
+  rebuys: number;
+  /** Net result so far: chips now (including what's in the pot) minus buy-ins. */
+  profit: number;
 }
 export interface PublicRoomState {
   v: number;
@@ -93,6 +102,8 @@ export function buildPublicRoom(
 ): PublicRoomState {
   const inRound = new Set(engine?.players.map((p) => p.id) ?? []);
   const bal = new Map(engine?.players.map((p) => [p.id, p.balance]) ?? []);
+  // chips currently in an unfinished pot still belong to the player for the purposes of profit
+  const inPot = new Map(engine && engine.phase !== 'ended' ? engine.players.map((p) => [p.id, p.committed]) : []);
   const gameView = game && engine ? { ...publicView(engine), version: game.game_version } : null;
   const nextRoundAt =
     room.status === 'between' && room.settings.autoNextRound && game?.ended_at
@@ -117,6 +128,9 @@ export function buildPublicRoom(
         connected: p.is_connected,
         ready: p.is_ready || p.id === room.host_player_id,
         inRound: inRound.has(p.id),
+        buyIn: Number(p.total_buy_in),
+        rebuys: p.rebuys,
+        profit: (bal.get(p.id) ?? Number(p.chip_balance)) + (inPot.get(p.id) ?? 0) - Number(p.total_buy_in),
       })),
     game: gameView,
     nextRoundAt,

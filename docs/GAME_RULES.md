@@ -61,12 +61,21 @@ Both hands are revealed to the table and compared.
 * An overdue player is packed; the next player gets a fresh full turn.
 * Disconnected players keep seat, chips and hand and may reconnect (a heartbeat every 15 s; stale after 40 s).
 
-## Zero-balance policy
-* A player must hold at least the boot to be dealt in; others sit out the round.
-* Balances can never be negative (database `CHECK` + engine validation).
-* If it is a player's turn and they cannot afford even one chaal at their rate, they are **packed automatically** (they may still *show* if exactly two players remain and the show is affordable).
-* Between rounds a player with fewer chips than a full stack can **top up** to the starting stack (virtual chips).
-* A game needs ≥ 3 ready players for the first round and ≥ 2 afterwards.
+## Zero-balance policy: all-in and side pots
+* A player must hold at least the boot to be dealt in; others sit out the round. Balances can never go negative (database `CHECK` + engine validation).
+* **All-in.** If you can't cover the full bet on your turn but still have chips, you get an **All-in** button (instead of being forced out): you put in everything you have left.
+  You may still pack. A player whose balance hits exactly 0 is all-in automatically. All-in players take no further decisions.
+* **Show all-in.** With two players left, a short stack may *show* for whatever they have left.
+* **Automatic showdown.** When nobody (or only one player) can still bet and at least one player is all-in, all remaining hands are revealed and the round is settled.
+* **Side pots.** Pots are layered by what each live player put in: the main pot goes to the best hand among everyone still in, up to the smallest contribution; each side pot is
+  contested only by players who put in at least that much. Chips above the highest live contribution go to the top pot (so a short all-in can only win what each player matched).
+  Ties and Hi-Lo are settled per pot. In an ordinary show (nobody all-in) the winner still takes the whole pot.
+* A player whose turn timer runs out is still packed automatically.
+
+## Buy-ins, top-ups and profit
+* Everyone buys in for the starting stack. A **top-up** (between rounds) refills you to a full stack and is **counted**: the host sets how many each player gets (default 3, `0` turns them off).
+* **Net profit** = chips now (including chips you have in the current pot) minus everything you bought in. It is shown in the lobby, the round scoreboard (session total) and the Standings tab.
+* **Leaving does not reset your stack.** If you leave and come back you get the same chips and the same buy-in history back. A player the host removed cannot rejoin.
 
 ## Chip accounting guarantees
 All commands run in a PostgreSQL transaction holding `SELECT … FOR UPDATE` on the room; each command carries an idempotency key

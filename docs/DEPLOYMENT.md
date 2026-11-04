@@ -8,6 +8,7 @@ Free tiers are rate/usage limited and have no uptime guarantee; a Supabase free 
 3. Apply the migrations in `supabase/migrations/` in order (SQL editor or `supabase db push`):
    * `0001_core_schema.sql` – tables, constraints, RLS (enabled, **no client policies**: tables are server-only).
    * `0003_chat.sql` + `0004_chat_realtime.sql` – in-room chat table and its broadcast trigger.
+   * `0005_buyins.sql` – buy-in/rebuy tracking and keeping a player's row when they leave.
    * `0002_realtime.sql` – private Realtime Broadcast: membership-checked `realtime.messages` policy and the trigger that broadcasts the public room state.
 4. Realtime → Settings: leave **“Allow public access”** off (channels are private).
 5. Dashboard → Connect → **Transaction pooler** string (port 6543) → this is `SUPABASE_DB_URL`.
@@ -32,3 +33,6 @@ Check: refresh keeps your seat; only you see your cards; “Reconnecting…” a
 Tests: `npm test` (engine + security + service tests; service tests need a local Postgres at `TEST_DB_URL`, default
 `postgres://postgres:postgres@localhost:5432/tp_test`, and are skipped otherwise). Browser tests: `npm run build && npm run test:e2e`
 (starts a local mock of Supabase Auth, so no cloud project is needed; set `PW_CHROMIUM` to a Chromium binary if Playwright's own isn't installed).
+
+## Auto-deploy
+Pushing to `master` deploys to production automatically (the Vercel project is linked to the GitHub repo). Apply any new `supabase/migrations/*.sql` to Supabase **before** pushing code that needs them.

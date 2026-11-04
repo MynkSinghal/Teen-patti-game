@@ -13,7 +13,7 @@ export function StakeLadder({ game, names }: { game: Game; names: Map<string, st
   const who = lastRaise?.playerId ? names.get(lastRaise.playerId) : null;
   const atMax = game.stake >= maxStake;
   return (
-    <div className="rounded-lg border border-line bg-panel/80 px-2.5 py-1.5" data-testid="stake-ladder" aria-label={`Stake ${game.stake}, blind pays ${game.blindCost}, seen pays ${game.seenCost}${atMax ? ', at the table maximum' : ''}`}>
+    <div className="rounded-lg border border-line bg-panel/80 px-2.5 py-1.5 short:py-1" data-testid="stake-ladder" aria-label={`Stake ${game.stake}, blind pays ${game.blindCost}, seen pays ${game.seenCost}${atMax ? ', at the table maximum' : ''}`}>
       <div className="flex items-center gap-2 text-[11px] leading-none">
         <span className="flex items-center gap-1 text-muted"><TrendingUp size={12} className="text-gold" />Stake</span>
         <b className="font-display text-base leading-none text-gold-soft tabular-nums" data-testid="stake-value">{game.stake}</b>
@@ -27,7 +27,7 @@ export function StakeLadder({ game, names }: { game: Game; names: Map<string, st
           <span key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= at ? (atMax && i === levels ? 'bg-danger' : 'bg-gold') : 'bg-line'}`} />
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-[10px] leading-none text-muted">
+      <div className="mt-1 flex justify-between text-[10px] leading-none text-muted short:hidden">
         <span>{who ? <>raised by <b className="text-paper/80">{who}</b></> : 'no raises yet'}</span>
         <span>{atMax ? <b className="text-danger">table max</b> : `max ${maxStake}`}</span>
       </div>

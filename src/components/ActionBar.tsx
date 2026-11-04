@@ -19,8 +19,8 @@ export function ActionBar({ view, send, busy }: { view: ClientView; send: (c: Co
             <b>{name(game.pending.requesterId)}</b> asks for a sideshow. Your hands will be compared privately; the weaker hand packs. <Countdown deadline={game.turnDeadline} />
           </p>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <button className="btn btn-gold !min-h-[52px] ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_respond', accept: true })} data-testid="sideshow-accept">Accept</button>
-            <button className="btn btn-ghost !min-h-[52px] ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_respond', accept: false })} data-testid="sideshow-decline">Decline</button>
+            <button className="btn btn-gold !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_respond', accept: true })} data-testid="sideshow-accept">Accept</button>
+            <button className="btn btn-ghost !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_respond', accept: false })} data-testid="sideshow-decline">Decline</button>
           </div>
         </div>
       );
@@ -46,29 +46,35 @@ export function ActionBar({ view, send, busy }: { view: ClientView; send: (c: Co
       <div className="text-center text-xs text-gold-soft">
         Your turn · <Countdown deadline={game.turnDeadline} />
       </div>
+      {!l.bet && l.allIn && <p className="text-center text-[11px] text-gold-soft">You can't cover the full bet, so you can go all-in or pack.</p>}
       <div className="grid grid-cols-2 gap-2 ls:grid-cols-3">
         {l.bet && (
-          <button className="btn btn-gold !min-h-[52px] ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'bet' })} data-testid="btn-bet" title="Match the current stake">
+          <button className="btn btn-gold !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'bet' })} data-testid="btn-bet" title="Match the current stake">
             <span className="flex flex-col leading-tight"><span>{seen ? 'Chaal' : 'Blind'}</span><span className="text-xs font-medium opacity-75">pay {l.bet.cost}</span></span>
           </button>
         )}
         {l.bet?.raiseCost && (
-          <button className="btn btn-gold !min-h-[52px] ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'bet', raise: true })} data-testid="btn-raise">
+          <button className="btn btn-gold !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'bet', raise: true })} data-testid="btn-raise">
             <span className="flex flex-col leading-tight"><span>Raise to {l.bet.raiseTo}</span><span className="text-xs font-medium opacity-75">pay {l.bet.raiseCost}</span></span>
           </button>
         )}
         {l.sideshow && (
-          <button className="btn btn-ghost !min-h-[52px] ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_request' })} data-testid="btn-sideshow">
+          <button className="btn btn-ghost !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'sideshow_request' })} data-testid="btn-sideshow">
             <span className="flex flex-col leading-tight"><span>Sideshow</span><span className="text-xs font-medium opacity-75">pay {l.sideshow.cost}</span></span>
           </button>
         )}
+        {l.allIn && (
+          <button className="btn btn-gold !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'allin' })} data-testid="btn-allin" title="You can't cover the full bet: put in everything you have left">
+            <span className="flex flex-col leading-tight"><span>All-in</span><span className="text-xs font-medium opacity-75">{l.allIn.amount} chips</span></span>
+          </button>
+        )}
         {l.show && (
-          <button className="btn btn-ghost !min-h-[52px] ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'show' })} data-testid="btn-show">
-            <span className="flex flex-col leading-tight"><span>Show</span><span className="text-xs font-medium opacity-75">pay {l.show.cost}</span></span>
+          <button className="btn btn-ghost !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'show' })} data-testid="btn-show">
+            <span className="flex flex-col leading-tight"><span>{l.show.allIn ? 'Show all-in' : 'Show'}</span><span className="text-xs font-medium opacity-75">pay {l.show.cost}</span></span>
           </button>
         )}
         {l.pack && (
-          <button className="btn btn-danger !min-h-[52px] ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'pack' })} data-testid="btn-pack">
+          <button className="btn btn-danger !min-h-[52px] whitespace-nowrap ls:!min-h-[44px] ls:!px-2 ls:!text-[13px]" disabled={busy} onClick={() => send({ type: 'pack' })} data-testid="btn-pack">
             Pack
           </button>
         )}

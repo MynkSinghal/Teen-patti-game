@@ -31,6 +31,10 @@ export function RoundEnd({ view, send, busy }: { view: ClientView; send: (c: Com
   // Everyone who did not pack: show their cards if revealed, otherwise a face-down hand.
   const standing = game.players.filter((p) => !p.folded);
   const canReveal = r.reason === 'last_standing' && winnerIds.includes(me.playerId) && !revealed.has(me.playerId);
+  const sessionProfit = (id: string) => {
+    const v = room.players.find((x) => x.id === id)?.profit;
+    return v === undefined ? '' : `${v > 0 ? '+' : ''}${v}`;
+  };
   const nets = game.players
     .map((p) => ({ p, net: r.payouts.filter((x) => x.playerId === p.id).reduce((s, x) => s + x.amount, 0) - p.committed }))
     .sort((a, b) => b.net - a.net);
@@ -43,12 +47,22 @@ export function RoundEnd({ view, send, busy }: { view: ClientView; send: (c: Com
         <p className="mt-1 font-display text-2xl text-gold-soft" data-testid="winner-text">
           {multi ? 'Pot shared' : `${name(winnerIds[0]!)} won ${r.payouts[0]!.amount}`}
         </p>
-        <p className="text-xs text-muted">{r.reason === 'show' ? 'Decided by a show' : 'Everyone else packed'} · pot {r.pot}</p>
+        <p className="text-xs text-muted">{r.reason === 'show' ? 'Decided by a show' : r.reason === 'showdown' ? 'All-in showdown' : 'Everyone else packed'} · pot {r.pot}</p>
         <p className={`mt-1 text-sm font-semibold ${net >= 0 ? 'text-gold-soft' : 'text-danger'}`} data-testid="my-net">
           {myIn > 0 ? (iWon ? `You won ${myPayout} (net ${net >= 0 ? '+' : ''}${net})` : `You lost ${myIn}`) : ''}
         </p>
       </div>
 
+      {r.pots && r.pots.length > 1 && (
+        <ul className="space-y-1 rounded-xl bg-panel-2 p-2 text-xs" data-testid="pots">
+          {r.pots.map((pt, i) => (
+            <li key={i} className="flex items-center justify-between gap-2">
+              <span className="text-muted">{i === 0 ? 'Main pot' : `Side pot ${i}`} · {pt.amount}</span>
+              <span className="truncate text-right text-gold-soft">{pt.winners.map((id) => name(id)).join(', ')}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="space-y-1.5" data-testid="winners">
         {r.payouts.map((p, i) => {
           const rev = revealed.get(p.playerId);
@@ -100,24 +114,31 @@ export function RoundEnd({ view, send, busy }: { view: ClientView; send: (c: Com
         <ul className="divide-y divide-line text-sm" data-testid="scoreboard">
           {nets.map(({ p, net: n }) => (
             <li key={p.id} className="flex items-center justify-between py-1">
-              <span className={p.folded ? 'text-muted' : ''}>{name(p.id)}{p.folded && ' · packed'}</span>
-              <span className={`tabular-nums ${n > 0 ? 'text-gold-soft' : n < 0 ? 'text-danger' : 'text-muted'}`}>{n > 0 ? '+' : ''}{n}</span>
+              <span className={p.folded ? 'text-muted' : ''}>{name(p.id)}{p.folded && ' · packed'}{p.allIn && ' · all-in'}</span>
+              <span className="flex items-baseline gap-3">
+                <span className={`tabular-nums ${n > 0 ? 'text-gold-soft' : n < 0 ? 'text-danger' : 'text-muted'}`}>{n > 0 ? '+' : ''}{n}</span>
+                <span className="w-16 text-right text-[11px] text-muted" title="Net result over the whole session">total {sessionProfit(p.id)}</span>
+              </span>
             </li>
           ))}
         </ul>
       </div>
 
-      {broke && <TopUp room={room} send={send} busy={busy} />}
+      {meP && meP.balance < room.settings.startingChips && (broke || meP.balance < room.settings.startingChips / 2) && <TopUp room={room} me={meP} send={send} busy={busy} />}
       <RoundStarter view={view} send={send} busy={busy} startLabel="Deal next round" />
       {room.nextRoundAt && <p className="text-center text-xs text-muted">The next round starts automatically soon.</p>}
     </motion.div>
   );
 }
 
-function TopUp({ room, send, busy }: { room: ClientView['room']; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
+function TopUp({ room, me, send, busy }: { room: ClientView['room']; me: ClientView['room']['players'][number]; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
+  const left = room.settings.maxRebuys - me.rebuys;
+  if (left <= 0) {
+    return <p className="rounded-xl bg-panel-2 p-2 text-center text-xs text-muted" data-testid="no-rebuys">No top-ups left{room.settings.maxRebuys === 0 ? ' (turned off at this table)' : ''}. You have {me.balance.toLocaleString()} chips.</p>;
+  }
   return (
     <button className="btn btn-ghost w-full" disabled={busy} onClick={() => send({ type: 'rebuy' })} data-testid="rebuy">
-      You're low on chips: top up to {room.settings.startingChips}
+      Top up to {room.settings.startingChips.toLocaleString()} · {left} left <span className="opacity-70">(counts against your profit)</span>
     </button>
   );
 }

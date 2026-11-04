@@ -21,7 +21,7 @@ Browser ◀── broadcast (public, card-free) ; GET /state → your private vi
 
 ## Features
 Dealer-rotation with dealer-picked variations and an in-app rules sheet with card examples, stake ladder + per-seat last actions + activity feed and round history,
-multi-winner results with revealed hands, leave-anytime, in-room chat (bubble + banner), synthesized sound effects with mute/volume and haptics, four table themes.
+all-in with side pots, buy-in/top-up tracking with net profit, player-set jokers, landscape-first layout (the table is drawn sideways even when the phone is held upright), multi-winner results with revealed hands, leave-anytime, in-room chat (bubble + banner), synthesized sound effects with mute/volume and haptics, four table themes.
 
 ## Scripts
 `npm run dev | build | start | typecheck | test | test:e2e`

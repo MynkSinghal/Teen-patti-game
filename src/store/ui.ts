@@ -17,6 +17,9 @@ interface UIStore {
   unread: number;
   banner: ChatMessage | null;
   myPlayerId: string | null;
+  /** The table is currently drawn rotated into landscape (phone held in portrait). */
+  forced: boolean;
+  setForced: (f: boolean) => void;
   init: () => void;
   setMuted: (m: boolean) => void;
   setVolume: (v: number) => void;
@@ -44,6 +47,8 @@ export const useUI = create<UIStore>((set, get) => ({
   unread: 0,
   banner: null,
   myPlayerId: null,
+  forced: false,
+  setForced: (forced) => set({ forced }),
   init: () => {
     const { muted, volume } = loadSoundPrefs();
     let theme: Theme = 'classic';

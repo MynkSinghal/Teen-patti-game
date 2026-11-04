@@ -1,4 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import postgres from 'postgres';
 
 type P = { page: Page; name: string };
 
@@ -161,4 +162,36 @@ test('invalid and unknown room codes show friendly errors', async ({ browser }) 
   await p.page.getByTestId('code-input').fill('ZZZZZZ');
   await p.page.getByTestId('join-submit').click();
   await expect(p.page.getByTestId('landing-error')).toContainText(/couldn't find a room/i);
+});
+
+test('a short stack goes all-in instead of being forced out; side pot result is shown', async ({ browser }) => {
+  const { host, b, c, all, code } = await setup(browser);
+  const sql = postgres(process.env.SUPABASE_DB_URL ?? 'postgres://postgres:postgres@localhost:5432/tp_test', { max: 1, onnotice: () => {} });
+  // Bela only has 28 chips: after the boot (10) she has 18, but a seen chaal costs 20.
+  await sql`update players set chip_balance = 28 where display_name = 'Bela' and room_id = (select id from rooms where room_code = ${code})`;
+  await host.page.getByTestId('pick-classic').click();
+  await host.page.getByTestId('start-round').click();
+  await expect(b.page.getByTestId('table')).toBeVisible();
+  await b.page.getByTestId('see-cards').click();
+  await expect(b.page.getByTestId('btn-allin')).toBeVisible({ timeout: 25_000 });
+  await expect(b.page.getByTestId('btn-allin')).toContainText('18 chips');
+  await expect(b.page.getByTestId('btn-bet')).toHaveCount(0); // can't cover a normal chaal
+  await b.page.getByTestId('btn-allin').click();
+  for (const p of all) {
+    await expect(p.page.getByTestId('seat-Bela').getByTestId('last-action')).toHaveText('All-in 18');
+    await expect(p.page.getByTestId('seat-Bela').getByTestId('allin-chip')).toBeVisible();
+    await expect(p.page.getByTestId('seat-Bela').getByTestId('balance')).toHaveText('0');
+  }
+  // One of the others packs: only one player who can still bet remains, so it goes straight to an all-in showdown.
+  const next = await turnPage(all, b);
+  await next.page.getByTestId('btn-pack').click();
+  for (const p of all) {
+    await expect(p.page.getByTestId('round-result')).toBeVisible({ timeout: 25_000 });
+    await expect(p.page.getByTestId('round-result')).toContainText('All-in showdown');
+    await expect(p.page.getByTestId('pots')).toContainText('Main pot');
+    await expect(p.page.getByTestId('pots')).toContainText('Side pot 1');
+    await expect(p.page.getByTestId('end-hands').getByTestId('card-face')).toHaveCount(6); // both live hands revealed
+  }
+  await sql.end();
+  void c;
 });

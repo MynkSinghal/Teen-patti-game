@@ -24,6 +24,7 @@ export function describeEvent(e: PublicEvent, name: (id?: string) => string): { 
     case 'seen': return { icon: '👁', text: `${who} looked at their cards` };
     case 'bet': return { icon: '🪙', text: `${who} bet ${e.amount}` };
     case 'raise': return { icon: '🔺', text: `${who} raised the stake to ${e.stake} (paid ${e.amount})` };
+    case 'allin': return { icon: '🔥', text: `${who} went all-in with ${e.amount}` };
     case 'pack': return { icon: '🏳', text: `${who} packed` };
     case 'timeout_pack': return { icon: '⏱', text: `${who} ran out of time and packed` };
     case 'broke_pack': return { icon: '💸', text: `${who} couldn't afford the next bet and packed` };
@@ -73,7 +74,7 @@ function ResultLine({ r, names }: { r: RoundHistory; names: Map<string, string> 
       {res && res.reveal.length > 0 && (
         <p className="mt-1 text-xs text-paper/70">{res.reveal.map((x) => `${names.get(x.playerId) ?? '?'}: ${x.label}${jokerNote(x.jokerAs) ? ` (${jokerNote(x.jokerAs)})` : ''}`).join(' · ')}</p>
       )}
-      <p className="mt-0.5 text-[11px] text-muted">Pot {res?.pot} · {res?.reason === 'show' ? 'decided by a show' : 'everyone else packed'}</p>
+      <p className="mt-0.5 text-[11px] text-muted">Pot {res?.pot} · {res?.reason === 'show' ? 'decided by a show' : res?.reason === 'showdown' ? 'all-in showdown' : 'everyone else packed'}</p>
     </li>
   );
 }
@@ -81,7 +82,7 @@ function ResultLine({ r, names }: { r: RoundHistory; names: Map<string, string> 
 export function FeedSheet({ view, code }: { view: ClientView; code: string }) {
   const sheet = useUI((s) => s.sheet);
   const close = useUI((s) => s.close);
-  const [tab, setTab] = useState<'live' | 'rounds'>('live');
+  const [tab, setTab] = useState<'live' | 'rounds' | 'standings'>('live');
   const [hist, setHist] = useState<RoundHistory[] | null>(null);
   useEffect(() => {
     if (sheet === 'feed' && tab === 'rounds') api.history(code).then(setHist).catch(() => setHist([]));
@@ -96,12 +97,29 @@ export function FeedSheet({ view, code }: { view: ClientView; code: string }) {
   const log = [...(view.room.game?.log ?? [])].reverse();
   return (
     <Sheet open={sheet === 'feed'} onClose={close} title="Table activity" testId="feed-sheet">
-      <div className="mb-3 grid grid-cols-2 gap-1 rounded-xl bg-panel-2 p-1">
-        {(['live', 'rounds'] as const).map((t) => (
-          <button key={t} className={`btn !min-h-9 !text-sm ${tab === t ? 'btn-gold' : 'text-muted'}`} onClick={() => setTab(t)}>{t === 'live' ? 'This round' : 'Past rounds'}</button>
+      <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-panel-2 p-1">
+        {(['live', 'rounds', 'standings'] as const).map((t) => (
+          <button key={t} className={`btn !min-h-9 !px-1 !text-sm ${tab === t ? 'btn-gold' : 'text-muted'}`} onClick={() => setTab(t)} data-testid={`tab-${t}`}>{t === 'live' ? 'This round' : t === 'rounds' ? 'Past rounds' : 'Standings'}</button>
         ))}
       </div>
-      {tab === 'live' ? (
+      {tab === 'standings' ? (
+        <div data-testid="standings">
+          <ul className="divide-y divide-line">
+            {[...view.room.players].sort((a, b) => b.profit - a.profit).map((p, i) => (
+              <li key={p.id} className="flex items-center gap-3 py-2">
+                <span className="w-5 text-xs text-muted">{i + 1}</span>
+                <Avatar name={p.name} size={30} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{p.id === view.me.playerId ? 'You' : p.name}</p>
+                  <p className="text-[11px] text-muted">bought in {p.buyIn.toLocaleString()}{p.rebuys > 0 ? ` (${p.rebuys} top-up${p.rebuys > 1 ? 's' : ''})` : ''} · now {p.balance.toLocaleString()}</p>
+                </div>
+                <span className={`font-display text-lg tabular-nums ${p.profit > 0 ? 'text-gold-soft' : p.profit < 0 ? 'text-danger' : 'text-muted'}`} data-testid="profit">{p.profit > 0 ? '+' : ''}{p.profit.toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-[11px] text-muted">Net result = chips now (including chips in the pot) minus everything you bought in. Top-ups at this table: up to {view.room.settings.maxRebuys}.</p>
+        </div>
+      ) : tab === 'live' ? (
         <ul className="space-y-1.5" data-testid="feed-list">
           {log.map((e) => {
             const d = describeEvent(e, nm);
@@ -187,7 +205,7 @@ export function LeaveSheet({ view, send }: { view: ClientView; send: (c: Command
         {midRound ? (
           <p>You'll <b>pack right now</b>. The <b className="text-gold-soft">{mine!.committed.toLocaleString()}</b> chips you've already put in stay in the pot, and you walk away with <b className="text-gold-soft">{bal.toLocaleString()}</b>.</p>
         ) : (
-          <p>You'll leave the room with <b className="text-gold-soft">{bal.toLocaleString()}</b> chips. You can rejoin with the room code while it's open, but you'll start again with a fresh stack.</p>
+          <p>You'll leave the room with <b className="text-gold-soft">{bal.toLocaleString()}</b> chips. If you come back with the room code you'll have the same chips (leaving doesn't reset your stack).</p>
         )}
         {me.isHost && others.length > 0 && <p className="text-gold-soft">As host, hosting passes to another player.</p>}
         {me.isHost && others.length === 0 && <p className="text-gold-soft">You're the last player, so the room will close.</p>}

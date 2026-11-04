@@ -205,7 +205,7 @@ export function useRoom(code: string) {
       try {
         const gv = s.getState().view?.room.game?.version;
         const full = { ...cmd, idempotencyKey: uuid() } as Record<string, unknown>;
-        if (['bet', 'pack', 'show', 'sideshow_request', 'sideshow_respond'].includes(cmd.type) && gv !== undefined) full.gameVersion = gv;
+        if (['bet', 'pack', 'allin', 'show', 'sideshow_request', 'sideshow_respond'].includes(cmd.type) && gv !== undefined) full.gameVersion = gv;
         const v = await api.command(code, full as Command);
         s.getState().applyView(v);
         return true;
