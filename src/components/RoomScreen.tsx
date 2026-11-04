@@ -80,6 +80,12 @@ function RotateHint({ active }: { active: boolean }) {
     mq.addEventListener('change', on);
     return () => mq.removeEventListener('change', on);
   }, []);
+  // Never leave it hanging around: hide it after a few seconds.
+  useEffect(() => {
+    if (!active || !portrait || dismissed) return;
+    const t = setTimeout(() => setDismissed(true), 9000);
+    return () => clearTimeout(t);
+  }, [active, portrait, dismissed]);
   if (!active || !portrait || dismissed) return null;
   const goLandscape = async () => {
     try {
@@ -88,7 +94,7 @@ function RotateHint({ active }: { active: boolean }) {
     } catch { /* iOS Safari can't lock; the user can rotate manually */ }
   };
   return (
-    <div className="fixed inset-x-3 bottom-3 z-30 mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-gold/40 bg-panel/95 px-3 py-2 text-xs shadow-xl backdrop-blur" role="status" data-testid="rotate-hint">
+    <div className="fixed inset-x-3 top-[58px] z-30 mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-gold/40 bg-panel/95 px-3 py-2 text-xs shadow-xl backdrop-blur" role="status" data-testid="rotate-hint">
       <RotateCw size={18} className="shrink-0 text-gold" />
       <span className="flex-1">Turn your phone sideways for the best table view.</span>
       <button className="rounded-full bg-gold px-3 py-1 font-bold text-ink" onClick={goLandscape}>Go landscape</button>
