@@ -15,7 +15,7 @@ export function StakeLadder({ game, names }: { game: Game; names: Map<string, st
   const lastRaise = [...game.log].reverse().find((e) => e.type === 'raise');
   const atMax = game.stake >= maxStake;
   return (
-    <div className="rounded-xl border border-line bg-panel/80 px-3 py-1.5" data-testid="stake-ladder">
+    <div className="rounded-xl border border-line bg-panel/80 px-3 py-1.5 ls:py-1" data-testid="stake-ladder">
       <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
         <span>Stake</span>
         <span>
@@ -23,7 +23,7 @@ export function StakeLadder({ game, names }: { game: Game; names: Map<string, st
           {atMax ? ' · max' : ''}
         </span>
       </div>
-      <div className="mt-1.5 flex items-end gap-1">
+      <div className="mt-1 flex items-end gap-1">
         {steps.map((s, i) => {
           const done = s <= game.stake;
           const current = s === game.stake;
@@ -31,7 +31,7 @@ export function StakeLadder({ game, names }: { game: Game; names: Map<string, st
             <div key={s} className="flex flex-1 flex-col items-center gap-1">
               <motion.div
                 layout
-                animate={{ height: 6 + i * 3, opacity: done ? 1 : 0.28 }}
+                animate={{ height: 5 + i * 2, opacity: done ? 1 : 0.28 }}
                 className={`w-full rounded-sm ${current ? 'bg-gold shadow-[0_0_10px_rgba(201,162,75,.8)]' : done ? 'bg-gold/60' : 'bg-line'}`}
               />
               <span className={`text-[10px] tabular-nums ${current ? 'font-bold text-gold-soft' : 'text-muted'}`}>{s}</span>

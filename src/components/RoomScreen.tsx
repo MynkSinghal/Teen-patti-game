@@ -182,7 +182,9 @@ export function RoomScreen({ code }: { code: string }) {
             <SideshowNote view={view} />
             <Hand view={view} busy={busy} onSee={() => send({ type: 'see' })} />
             <MyMoney view={view} />
-            <ActionBar view={view} send={send} busy={busy} />
+            <div className="ls:sticky ls:bottom-0 ls:z-10 ls:-mx-1 ls:bg-ink/95 ls:px-1 ls:pb-1 ls:pt-1 ls:backdrop-blur" data-testid="action-dock">
+              <ActionBar view={view} send={send} busy={busy} />
+            </div>
             <RoundEnd view={view} send={send} busy={busy} />
             {room.status === 'between' && me.isHost && <HostBetween view={view} send={send} busy={busy} />}
           </div>

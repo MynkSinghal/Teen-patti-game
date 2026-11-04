@@ -42,7 +42,7 @@ export function Hand({ view, onSee, busy }: { view: ClientView; onSee: () => voi
           );
         })}
       </div>
-      <div className="flex h-7 items-center gap-2 text-sm">
+      <div className="flex h-6 items-center gap-2 text-sm">
         {priv.folded ? (
           <span className="text-muted">You packed</span>
         ) : cards ? (

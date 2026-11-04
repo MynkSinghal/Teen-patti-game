@@ -39,7 +39,7 @@ export function Table({ view }: { view: ClientView }) {
     players.forEach((p, i) => {
       const k = (i - meIdx + n) % n;
       const a = Math.PI / 2 + (k * 2 * Math.PI) / n; // me at the bottom, others clockwise
-      map.set(p.id, { x: 50 + 41 * Math.cos(a), y: 46 + 39 * Math.sin(a) });
+      map.set(p.id, { x: 50 + 41 * Math.cos(a), y: 46 + 37 * Math.sin(a) });
     });
     return map;
   }, [players, meIdx, n]);
@@ -51,7 +51,7 @@ export function Table({ view }: { view: ClientView }) {
     <div className="relative mx-auto h-[min(41dvh,360px)] min-h-[290px] w-full max-w-md ls:h-full ls:min-h-0 ls:max-w-none" data-testid="table">
       <div className="felt absolute inset-x-[8%] inset-y-[9%] rounded-[50%]" />
       <div className="absolute inset-x-[8%] inset-y-[9%] rounded-[50%] ring-1 ring-inset ring-gold/20" style={{ margin: 7 }} />
-      <div className="absolute left-1/2 top-[46%] -translate-x-1/2 -translate-y-1/2 text-center" data-testid="pot-btn">
+      <div className="absolute left-1/2 top-[45%] -translate-x-1/2 -translate-y-1/2 text-center ls:scale-90" data-testid="pot-btn">
         {live && game ? (
           <>
             <button onClick={() => useUI.getState().open('pot')} aria-label="Pot breakdown" className="block w-full" data-testid="pot-open">
@@ -60,7 +60,7 @@ export function Table({ view }: { view: ClientView }) {
                 <Coins size={20} className="text-gold" />
                 <motion.span key={game.pot} initial={{ scale: 1.25 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 18 }}>{game.pot.toLocaleString()}</motion.span>
               </div>
-              <PotStack pot={game.pot} boot={room.settings.boot} />
+              <div className="ls:hidden"><PotStack pot={game.pot} boot={room.settings.boot} /></div>
             </button>
             <div className="mt-0.5 flex items-center justify-center gap-1.5 text-[11px] text-gold-soft/90">
               {game.variationName}

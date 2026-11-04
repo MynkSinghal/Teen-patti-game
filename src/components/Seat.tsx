@@ -42,7 +42,7 @@ export function Seat(p: Props) {
   const progress = p.isTurn && left !== null ? left / Math.max(1, p.turnSeconds) : p.isTurn ? 1 : null;
   const last = describeLast(p.gp?.last ?? null);
   return (
-    <div className="flex w-[92px] flex-col items-center" data-testid={`seat-${p.name}`}>
+    <div className="flex w-[92px] flex-col items-center ls:origin-center ls:scale-[.78]" data-testid={`seat-${p.name}`}>
       {p.inRound && !p.isMe && !folded && (
         <div className="-mb-3 flex -space-x-3.5">
           {[0, 1, 2].map((i) => <PlayingCard key={i} faceDown size="xs" delay={0.07 * i} />)}
