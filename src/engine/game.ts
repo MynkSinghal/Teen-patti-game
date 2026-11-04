@@ -1,0 +1,419 @@
+import { deal } from './cards';
+import { betCost, canRaise, chaalCost, raisedStake } from './rules';
+import type {
+  Action,
+  EnginePlayer,
+  EngineState,
+  Payout,
+  PublicEvent,
+  Rng,
+  RoundResult,
+  RulesConfig,
+  VariationId,
+} from './types';
+import { EngineError } from './types';
+import { getVariation } from './variations';
+
+const MAX_LOG = 40;
+
+export interface StartRoundInput {
+  round: number;
+  players: { id: string; name: string; seat: number; balance: number }[];
+  /** Seat of the dealer for this round; first turn goes to the next funded seat. */
+  dealerSeat: number;
+  rules: RulesConfig;
+  variation: Exclude<VariationId, 'dealers_choice'>;
+  variationOptions?: Record<string, unknown>;
+  rng: Rng;
+  now: number;
+}
+
+export interface StepOutput {
+  state: EngineState;
+  events: PublicEvent[];
+}
+
+const clone = <T>(x: T): T => structuredClone(x);
+
+function push(state: EngineState, events: PublicEvent[], e: Omit<PublicEvent, 'seq'>) {
+  const ev = { ...e, seq: ++state.seq };
+  state.log.push(ev);
+  if (state.log.length > MAX_LOG) state.log.shift();
+  events.push(ev);
+}
+
+export const activePlayers = (s: EngineState) => s.players.filter((p) => !p.folded);
+const getPlayer = (s: EngineState, id: string) => s.players.find((p) => p.id === id);
+
+/** Players who can pay the boot take part; others sit out. */
+export function startRound(input: StartRoundInput): StepOutput {
+  const { rules } = input;
+  const funded = input.players.filter((p) => p.balance >= rules.boot).sort((a, b) => a.seat - b.seat);
+  if (funded.length < 2) throw new EngineError('NOT_ENOUGH_PLAYERS', 'At least two players need enough chips for the boot.');
+  const variation = getVariation(input.variation);
+  const ctx = variation.prepare(input.variationOptions ?? {}, rules, input.round, input.rng);
+  const hands = deal(funded.length, input.rng);
+
+  const players: EnginePlayer[] = funded.map((p) => ({
+    id: p.id,
+    name: p.name,
+    seat: p.seat,
+    balance: p.balance - rules.boot,
+    committed: rules.boot,
+    seen: false,
+    folded: false,
+    sideshowRequests: 0,
+  }));
+  const state: EngineState = {
+    round: input.round,
+    variation: input.variation,
+    ctx,
+    rules,
+    players,
+    dealerSeat: input.dealerSeat,
+    pot: rules.boot * players.length,
+    stake: Math.max(rules.minStake, rules.boot),
+    phase: 'betting',
+    turnId: null,
+    turnDeadline: null,
+    pending: null,
+    hands: Object.fromEntries(players.map((p, i) => [p.id, hands[i]!])),
+    notes: {},
+    result: null,
+    log: [],
+    seq: 0,
+  };
+  const events: PublicEvent[] = [];
+  push(state, events, { type: 'round_started' });
+  for (const p of players) push(state, events, { type: 'boot', playerId: p.id, amount: rules.boot });
+  // first turn: first funded seat after the dealer
+  const after = players.find((p) => p.seat > input.dealerSeat) ?? players[0]!;
+  assignTurn(state, after.id, input.now, events);
+  return { state, events };
+}
+
+function nextActiveAfter(state: EngineState, id: string): EnginePlayer {
+  const n = state.players.length;
+  const i = state.players.findIndex((p) => p.id === id);
+  for (let k = 1; k <= n; k++) {
+    const p = state.players[(i + k) % n]!;
+    if (!p.folded) return p;
+  }
+  throw new Error('no active players');
+}
+function previousActiveBefore(state: EngineState, id: string): EnginePlayer {
+  const n = state.players.length;
+  const i = state.players.findIndex((p) => p.id === id);
+  for (let k = 1; k <= n; k++) {
+    const p = state.players[(i - k + n * 2) % n]!;
+    if (!p.folded) return p;
+  }
+  throw new Error('no active players');
+}
+
+/** Can this player do anything but pack on their turn? */
+function mustPack(state: EngineState, p: EnginePlayer): boolean {
+  const call = chaalCost(state.rules, state.stake, p.seen);
+  if (p.balance >= call) return false;
+  if (activePlayers(state).length === 2 && showAllowed(state, p) && showCost(state, p) <= p.balance) return false;
+  return true;
+}
+
+function assignTurn(state: EngineState, id: string, now: number, events: PublicEvent[]) {
+  let cur = getPlayer(state, id)!;
+  // Players unable to afford any betting action are folded automatically ("broke pack").
+  for (let guard = 0; guard < state.players.length; guard++) {
+    if (!mustPack(state, cur)) break;
+    cur.folded = true;
+    push(state, events, { type: 'broke_pack', playerId: cur.id });
+    if (finishIfLastStanding(state, events)) return;
+    cur = nextActiveAfter(state, cur.id);
+  }
+  state.turnId = cur.id;
+  state.turnDeadline = now + state.rules.turnSeconds * 1000;
+  state.phase = 'betting';
+  state.pending = null;
+}
+
+function finishIfLastStanding(state: EngineState, events: PublicEvent[]): boolean {
+  const alive = activePlayers(state);
+  if (alive.length !== 1) return false;
+  const w = alive[0]!;
+  endRound(state, events, {
+    reason: 'last_standing',
+    pot: state.pot,
+    payouts: [{ playerId: w.id, amount: state.pot, share: 'all' }],
+    reveal: [],
+  });
+  return true;
+}
+
+function endRound(state: EngineState, events: PublicEvent[], result: RoundResult) {
+  for (const p of result.payouts) {
+    const pl = getPlayer(state, p.playerId)!;
+    pl.balance += p.amount;
+  }
+  state.pot = 0;
+  state.phase = 'ended';
+  state.turnId = null;
+  state.turnDeadline = null;
+  state.pending = null;
+  state.result = result;
+  push(state, events, { type: 'round_ended' });
+}
+
+function showAllowed(state: EngineState, p: EnginePlayer): boolean {
+  if (activePlayers(state).length !== 2) return false;
+  if (state.rules.showEligibility === 'seen_only' && !p.seen) return false;
+  return true;
+}
+const showCost = (state: EngineState, p: EnginePlayer) =>
+  state.rules.showCost === 'free' ? 0 : chaalCost(state.rules, state.stake, p.seen);
+
+function sideshowTarget(state: EngineState, p: EnginePlayer): EnginePlayer | null {
+  const r = state.rules;
+  if (!r.sideshowEnabled || !p.seen) return null;
+  const n = activePlayers(state).length;
+  if (n < 2 || (n === 2 && !r.sideshowWhenTwoLeft)) return null;
+  if (p.sideshowRequests >= r.maxSideshowRequests) return null;
+  const prev = previousActiveBefore(state, p.id);
+  if (prev.id === p.id || !prev.seen) return null;
+  return prev;
+}
+
+function pay(state: EngineState, p: EnginePlayer, amount: number) {
+  if (amount > p.balance) throw new EngineError('INSUFFICIENT_BALANCE', 'Not enough chips for that action.');
+  p.balance -= amount;
+  p.committed += amount;
+  state.pot += amount;
+}
+
+export function applyAction(prev: EngineState, playerId: string, action: Action, now: number): StepOutput {
+  const state = clone(prev);
+  const events: PublicEvent[] = [];
+  if (state.phase === 'ended') throw new EngineError('ROUND_ENDED', 'This round is over.');
+  const me = getPlayer(state, playerId);
+  if (!me) throw new EngineError('NOT_IN_ROUND', 'You are not in this round.');
+  if (me.folded) throw new EngineError('ALREADY_FOLDED', 'You have already packed.');
+
+  switch (action.type) {
+    case 'see': {
+      if (me.seen) throw new EngineError('ALREADY_SEEN', 'You have already seen your cards.');
+      me.seen = true;
+      push(state, events, { type: 'seen', playerId });
+      // A broke player who becomes seen on their turn may now be unable to continue.
+      if (state.phase === 'betting' && state.turnId === playerId && mustPack(state, me)) {
+        me.folded = true;
+        push(state, events, { type: 'broke_pack', playerId });
+        if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+      }
+      return { state, events };
+    }
+    case 'sideshow_respond': {
+      const pend = state.pending;
+      if (state.phase !== 'sideshow' || !pend) throw new EngineError('NO_PENDING_SIDESHOW', 'There is no sideshow to answer.');
+      if (pend.responderId !== playerId) throw new EngineError('NOT_YOUR_TURN', 'This sideshow is not addressed to you.');
+      resolveSideshow(state, events, action.accept, now, false);
+      return { state, events };
+    }
+    default:
+      break;
+  }
+
+  if (state.phase === 'sideshow') throw new EngineError('SIDESHOW_PENDING', 'Waiting for a sideshow answer.');
+  if (state.turnId !== playerId) throw new EngineError('NOT_YOUR_TURN', "It's not your turn.");
+
+  switch (action.type) {
+    case 'bet': {
+      const raise = !!action.raise;
+      if (raise && !canRaise(state.rules, state.stake)) throw new EngineError('INVALID_BET', 'The stake is already at the table maximum.');
+      const cost = betCost(state.rules, state.stake, me, raise);
+      pay(state, me, cost);
+      if (raise) state.stake = raisedStake(state.rules, state.stake);
+      push(state, events, { type: raise ? 'raise' : 'bet', playerId, amount: cost });
+      assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+      return { state, events };
+    }
+    case 'pack': {
+      me.folded = true;
+      push(state, events, { type: 'pack', playerId });
+      if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+      return { state, events };
+    }
+    case 'show': {
+      if (!showAllowed(state, me)) throw new EngineError('SHOW_NOT_ALLOWED', 'A show needs exactly two players left' + (state.rules.showEligibility === 'seen_only' ? ' and you must have seen your cards.' : '.'));
+      const cost = showCost(state, me);
+      pay(state, me, cost);
+      push(state, events, { type: 'show', playerId, amount: cost });
+      const other = activePlayers(state).find((p) => p.id !== playerId)!;
+      doShowdown(state, events, [me, other], playerId);
+      return { state, events };
+    }
+    case 'sideshow_request': {
+      const target = sideshowTarget(state, me);
+      if (!target) throw new EngineError('SIDESHOW_NOT_ALLOWED', 'A sideshow is not available right now.');
+      const cost = chaalCost(state.rules, state.stake, true);
+      pay(state, me, cost);
+      me.sideshowRequests += 1;
+      state.phase = 'sideshow';
+      state.pending = { requesterId: playerId, responderId: target.id, amount: cost };
+      state.turnDeadline = now + state.rules.sideshowSeconds * 1000;
+      push(state, events, { type: 'sideshow_request', playerId, otherId: target.id, amount: cost });
+      return { state, events };
+    }
+  }
+}
+
+function resolveSideshow(state: EngineState, events: PublicEvent[], accept: boolean, now: number, timedOut: boolean) {
+  const pend = state.pending!;
+  const req = getPlayer(state, pend.requesterId)!;
+  const res = getPlayer(state, pend.responderId)!;
+  if (!accept) {
+    push(state, events, { type: timedOut ? 'sideshow_timeout' : 'sideshow_declined', playerId: res.id, otherId: req.id });
+    assignTurn(state, nextActiveAfter(state, req.id).id, now, events);
+    return;
+  }
+  push(state, events, { type: 'sideshow_accepted', playerId: res.id, otherId: req.id });
+  const v = getVariation(state.variation);
+  const sReq = v.score(state.hands[req.id]!, state.ctx);
+  const sRes = v.score(state.hands[res.id]!, state.ctx);
+  let cmp = 0;
+  for (let i = 0; i < Math.max(sReq.key.length, sRes.key.length) && cmp === 0; i++) cmp = Math.sign((sReq.key[i] ?? 0) - (sRes.key[i] ?? 0));
+  let loser: EnginePlayer | null = null;
+  if (cmp > 0) loser = res;
+  else if (cmp < 0) loser = req;
+  else if (state.rules.tieHandling === 'challenger_loses') loser = req;
+  const note = (me: EnginePlayer, other: EnginePlayer, mine: typeof sReq, theirs: typeof sReq, role: 'requester' | 'responder') => {
+    (state.notes[me.id] ??= []).push({
+      type: 'sideshow_result',
+      otherId: other.id,
+      yourCards: state.hands[me.id]!,
+      otherCards: state.hands[other.id]!,
+      yourLabel: mine.label,
+      otherLabel: theirs.label,
+      outcome: loser === null ? 'tied' : loser.id === me.id ? 'lost' : 'won',
+      role,
+    });
+    state.notes[me.id] = state.notes[me.id]!.slice(-5);
+  };
+  note(req, res, sReq, sRes, 'requester');
+  note(res, req, sRes, sReq, 'responder');
+  if (loser) {
+    loser.folded = true;
+    push(state, events, { type: 'pack', playerId: loser.id });
+    if (finishIfLastStanding(state, events)) return;
+  }
+  assignTurn(state, nextActiveAfter(state, req.id).id, now, events);
+}
+
+function doShowdown(state: EngineState, events: PublicEvent[], entrants: EnginePlayer[], challengerId?: string) {
+  const v = getVariation(state.variation);
+  const entries = entrants.map((p) => ({ playerId: p.id, cards: state.hands[p.id]! }));
+  const payouts: Payout[] = v.settle(entries, state.pot, state.ctx, state.rules, challengerId);
+  endRound(state, events, {
+    reason: 'show',
+    pot: state.pot,
+    payouts,
+    challengerId,
+    reveal: entries.map((e) => ({ playerId: e.playerId, cards: e.cards, label: v.score(e.cards, state.ctx).label })),
+  });
+}
+
+/** Apply any overdue deadline (auto-pack / sideshow timeout). Returns null when nothing is overdue. */
+export function processTimeout(prev: EngineState, now: number): StepOutput | null {
+  if (prev.phase === 'ended' || prev.turnDeadline === null || now < prev.turnDeadline) return null;
+  const state = clone(prev);
+  const events: PublicEvent[] = [];
+  if (state.phase === 'sideshow') {
+    resolveSideshow(state, events, false, now, true);
+  } else {
+    const p = getPlayer(state, state.turnId!)!;
+    p.folded = true;
+    push(state, events, { type: 'timeout_pack', playerId: p.id });
+    if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, p.id).id, now, events);
+  }
+  return { state, events };
+}
+
+/* ---------------- views ---------------- */
+
+export interface LegalActions {
+  see: boolean;
+  bet: { cost: number; raiseCost: number | null } | null;
+  pack: boolean;
+  sideshow: { targetId: string; cost: number } | null;
+  show: { cost: number } | null;
+  respond: boolean;
+}
+
+export function legalActions(state: EngineState, playerId: string): LegalActions {
+  const none: LegalActions = { see: false, bet: null, pack: false, sideshow: null, show: null, respond: false };
+  const me = getPlayer(state, playerId);
+  if (!me || me.folded || state.phase === 'ended') return none;
+  const out = { ...none, see: !me.seen };
+  if (state.phase === 'sideshow') {
+    out.respond = state.pending?.responderId === playerId;
+    return out;
+  }
+  if (state.turnId !== playerId) return out;
+  out.pack = true;
+  const call = betCost(state.rules, state.stake, me, false);
+  if (me.balance >= call) {
+    const rc = canRaise(state.rules, state.stake) ? betCost(state.rules, state.stake, me, true) : null;
+    out.bet = { cost: call, raiseCost: rc !== null && me.balance >= rc ? rc : null };
+    const t = sideshowTarget(state, me);
+    if (t && me.balance >= chaalCost(state.rules, state.stake, true)) {
+      out.sideshow = { targetId: t.id, cost: chaalCost(state.rules, state.stake, true) };
+    }
+  }
+  if (showAllowed(state, me) && showCost(state, me) <= me.balance) out.show = { cost: showCost(state, me) };
+  return out;
+}
+
+export function publicView(state: EngineState, dealerSeat = state.dealerSeat) {
+  return {
+    round: state.round,
+    variation: state.variation,
+    variationName: state.ctx.name,
+    jokerRanks: state.ctx.jokerRanks,
+    lowestCardJoker: state.ctx.lowestCardJoker,
+    phase: state.phase,
+    pot: state.pot,
+    stake: state.stake,
+    blindCost: chaalCost(state.rules, state.stake, false),
+    seenCost: chaalCost(state.rules, state.stake, true),
+    turnId: state.turnId,
+    turnDeadline: state.turnDeadline,
+    pending: state.pending ? { requesterId: state.pending.requesterId, responderId: state.pending.responderId } : null,
+    dealerSeat,
+    players: state.players.map((p) => ({
+      id: p.id,
+      name: p.name,
+      seat: p.seat,
+      balance: p.balance,
+      committed: p.committed,
+      seen: p.seen,
+      folded: p.folded,
+    })),
+    result: state.result,
+    log: state.log.slice(-20),
+  };
+}
+export type PublicGameView = ReturnType<typeof publicView>;
+
+export function privateView(state: EngineState, playerId: string) {
+  const me = getPlayer(state, playerId);
+  const ended = state.phase === 'ended';
+  const canSee = !!me && !me.folded && (me.seen || (ended && state.result?.reason === 'show' && state.result.reveal.some((r) => r.playerId === playerId)));
+  const v = getVariation(state.variation);
+  return {
+    inRound: !!me,
+    seen: !!me?.seen,
+    folded: !!me?.folded,
+    cards: me && canSee ? state.hands[playerId]! : null,
+    handLabel: me && canSee ? v.score(state.hands[playerId]!, state.ctx).label : null,
+    legal: legalActions(state, playerId),
+    notes: state.notes[playerId] ?? [],
+  };
+}
+export type PrivateGameView = ReturnType<typeof privateView>;
