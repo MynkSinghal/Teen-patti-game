@@ -1,0 +1,105 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+@font-face{font-family:Yatra;src:url(node_modules/@fontsource/yatra-one/files/yatra-one-latin-400-normal.woff2)}
+@font-face{font-family:Baloo;src:url(node_modules/@fontsource/baloo-2/files/baloo-2-latin-600-normal.woff2);font-weight:600}
+@font-face{font-family:Baloo;src:url(node_modules/@fontsource/baloo-2/files/baloo-2-latin-800-normal.woff2);font-weight:800}
+:root{--ind:#1b1150;--ind2:#0e0830;--mari:#ffb81c;--saf:#ff7a00;--rani:#e6007e;--teal:#00b8a9;--cream:#fff4dc}
+*{box-sizing:border-box;margin:0}
+body{background:#000;font-family:Baloo,sans-serif;color:#fff}
+.screen{width:844px;height:390px;position:relative;overflow:hidden;margin-bottom:10px;background:
+ radial-gradient(500px 260px at 50% 110%,rgba(255,122,0,.35),transparent 70%),radial-gradient(circle at 80% 10%,#2b1a7a,transparent 45%),linear-gradient(var(--ind),var(--ind2))}
+.screen::before{content:'';position:absolute;inset:0;background:radial-gradient(1.2px 1.2px at 12% 18%,#fff,transparent),radial-gradient(1px 1px at 34% 8%,#fff,transparent),radial-gradient(1.4px 1.4px at 66% 14%,#ffd,transparent),radial-gradient(1px 1px at 90% 30%,#fff,transparent),radial-gradient(1.2px 1.2px at 22% 40%,#fff,transparent),radial-gradient(1px 1px at 75% 42%,#fff,transparent);opacity:.8}
+.lantern{position:absolute;width:16px;height:22px;border-radius:7px 7px 9px 9px;background:linear-gradient(#ffd36b,#ff7a00);box-shadow:0 0 18px #ffb81c,0 0 40px rgba(255,122,0,.6)}
+.lantern::before{content:'';position:absolute;left:7px;top:-40px;width:1px;height:40px;background:rgba(255,220,150,.5)}
+.yat{font-family:Yatra}
+.top{position:absolute;top:8px;left:12px;right:12px;display:flex;justify-content:space-between;align-items:center;z-index:5}
+.logo{font-family:Yatra;font-size:22px;color:var(--mari);text-shadow:0 2px 0 #7a2b00,0 0 14px rgba(255,184,28,.6)}
+.coins{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.35);border:2px solid var(--mari);border-radius:20px;padding:2px 12px 2px 4px;font-weight:800;font-size:14px}
+.coin{width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b0,#ffb81c 50%,#c06a00);box-shadow:0 0 0 2px #8a4a00;display:grid;place-items:center;font-size:11px;color:#7a3a00;font-weight:800}
+.ic{width:34px;height:34px;border-radius:12px;background:linear-gradient(#ff3fa4,#c2006a);box-shadow:0 3px 0 #6d003b;display:grid;place-items:center;font-size:15px}
+.ic.t{background:linear-gradient(#22d3c4,#008f84);box-shadow:0 3px 0 #004d47}.ic.y{background:linear-gradient(#ffcf4d,#ff9d00);box-shadow:0 3px 0 #9a5200}
+/* rangoli table */
+.table{position:absolute;left:150px;top:46px;width:544px;height:236px;border-radius:50%;
+ background:radial-gradient(ellipse,#2d1b8a 0 54%,transparent 55%),
+ repeating-conic-gradient(from 0deg at 50% 50%,var(--rani) 0 7.5deg,var(--mari) 7.5deg 15deg,var(--teal) 15deg 22.5deg,var(--saf) 22.5deg 30deg);
+ box-shadow:0 0 0 6px #4a2c00,0 0 0 9px var(--mari),0 14px 40px rgba(0,0,0,.6)}
+.table::after{content:'';position:absolute;inset:26px;border-radius:50%;background:
+ radial-gradient(circle,transparent 0 30px,rgba(255,184,28,.18) 31px 33px,transparent 34px) 50% 50%/1px 1px no-repeat,
+ radial-gradient(ellipse at 50% 45%,#3a2499,#20135f 70%);box-shadow:inset 0 0 30px rgba(0,0,0,.5)}
+.diya{position:absolute;width:7px;height:7px;border-radius:50%;background:#fff3b0;box-shadow:0 0 6px #ffb81c,0 0 14px #ff7a00;z-index:2}
+.mandala{position:absolute;left:422px;top:164px;transform:translate(-50%,-50%);width:150px;height:150px;border-radius:50%;opacity:.22;z-index:1;
+ background:repeating-conic-gradient(var(--mari) 0 10deg,transparent 10deg 20deg);mask:radial-gradient(circle,transparent 30px,#000 31px 70px,transparent 71px)}
+.pot{position:absolute;left:422px;top:150px;transform:translate(-50%,-50%);text-align:center;z-index:3}
+.pot .l{font-weight:800;font-size:11px;color:var(--mari);letter-spacing:.15em}
+.pot .v{font-family:Yatra;font-size:42px;line-height:1;color:#fff;text-shadow:0 3px 0 var(--rani),0 0 20px rgba(255,184,28,.6)}
+.pot .s{font-size:11px;font-weight:600;color:#ffd9a8}
+/* seats */
+.seat{position:absolute;transform:translate(-50%,-50%);width:92px;text-align:center;z-index:4}
+.av{width:46px;height:46px;margin:0 auto;border-radius:50%;display:grid;place-items:center;font-size:24px;position:relative;background:linear-gradient(#3a2499,#1b1150)}
+.tagbox{margin-top:-6px;border-radius:12px;padding:5px 4px 3px;background:var(--cream);color:#3b1700;box-shadow:0 3px 0 #b5762c}
+.nm{font-weight:800;font-size:12px;line-height:1}.bl{font-weight:800;font-size:11.5px;color:#b8560a;line-height:1.2;display:flex;align-items:center;justify-content:center;gap:3px}
+.bl i{width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b0,#ffb81c 55%,#c06a00);display:inline-block}
+.st{display:inline-block;margin-top:4px;font-size:10px;font-weight:800;padding:0 9px;border-radius:9px;color:#fff;background:var(--teal);box-shadow:0 2px 0 #00675f}
+.st.r{background:var(--rani);box-shadow:0 2px 0 #7a0043}.st.d{background:#5b5680;box-shadow:0 2px 0 #2a2650}
+.fold{filter:grayscale(.85) brightness(.75)}
+.dl{position:absolute;top:-4px;right:-6px;width:19px;height:19px;border-radius:50%;background:var(--mari);color:#5a2400;font-weight:800;font-size:11px;display:grid;place-items:center;box-shadow:0 2px 0 #9a5200}
+.minis{display:flex;justify-content:center;margin-bottom:-4px}.minis .card{width:14px;height:19px;margin:0 -2px;border-radius:3px}.minis .card i{display:none}
+/* cards */
+.card{position:relative;width:60px;height:86px;border-radius:10px;background:var(--cream);color:#2b1300;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--mari),0 8px 16px rgba(0,0,0,.45)}
+.card.red{color:#d1004f}.card .rk{position:absolute;left:7px;top:2px;font-family:Yatra;font-size:22px}.card .st{display:none}.card .pip{position:absolute;right:6px;bottom:2px;font-size:30px}
+.card.back{background:radial-gradient(circle at 50% 50%,var(--mari) 0 3px,transparent 4px) 0 0/12px 12px,linear-gradient(135deg,var(--rani),#7a0043)}
+.card.back i{position:absolute;inset:4px;border-radius:7px;border:1.5px solid rgba(255,220,150,.7)}
+.hand{position:absolute;left:300px;top:286px;display:flex;gap:6px;z-index:6}
+.hand .card:nth-child(2){transform:translateY(-8px)}
+.hl{position:absolute;left:300px;top:370px;width:200px;text-align:center;font-family:Yatra;font-size:15px;color:var(--mari);text-shadow:0 2px 0 #7a2b00;z-index:6}
+/* buttons */
+.b{border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:14px;line-height:1.05;color:#fff;text-shadow:0 1px 0 rgba(0,0,0,.3)}
+.b small{font-weight:600;font-size:10px;opacity:.9}
+.b.g{background:linear-gradient(#41e07d,#12a64a);box-shadow:0 4px 0 #0a6a2e,0 8px 14px rgba(0,0,0,.35)}
+.b.o{background:linear-gradient(#ffb340,#ff7a00);box-shadow:0 4px 0 #9a4300,0 8px 14px rgba(0,0,0,.35)}
+.b.p{background:linear-gradient(#ff4fae,#d1006c);box-shadow:0 4px 0 #6d003b,0 8px 14px rgba(0,0,0,.35)}
+.b.r{background:linear-gradient(#ff5d5d,#c81f2f);box-shadow:0 4px 0 #6b0a14,0 8px 14px rgba(0,0,0,.35)}
+.acts{position:absolute;right:12px;bottom:12px;width:226px;display:grid;grid-template-columns:1fr 1fr;gap:9px;z-index:6}
+.acts .b{height:48px}
+.me{position:absolute;left:150px;bottom:14px;z-index:6;display:flex;align-items:center;gap:8px}
+.timer{width:54px;height:54px;border-radius:50%;position:relative;display:grid;place-items:center;font-size:26px;background:linear-gradient(#3a2499,#1b1150)}
+.timer .ring{position:absolute;inset:-5px}
+.stake{position:absolute;left:12px;bottom:14px;width:128px;border-radius:14px;background:rgba(0,0,0,.35);border:2px solid rgba(255,184,28,.6);padding:6px 9px;z-index:6;font-size:11px;font-weight:600}
+.stake b{font-family:Yatra;font-weight:400;font-size:20px;color:var(--mari)}
+.spark{position:absolute;width:6px;height:6px;border-radius:50%}
+</style></head><body>
+<section class="screen" id="table"></section><section class="screen" id="result"></section><section class="screen" id="lobby"></section>
+<script>
+const M=MOCK;
+const lanterns=()=>[[40,30],[96,18],[770,24],[812,44]].map(([x,y])=>`<div class="lantern" style="left:${x}px;top:${y+30}px"></div>`).join('');
+const topBar=()=>`<div class="top"><div style="display:flex;align-items:center;gap:12px"><div class="logo">Teen Patti</div><div class="coins"><span class="coin">◆</span>2,480</div></div><div style="display:flex;gap:8px"><div class="ic">💬</div><div class="ic t">📜</div><div class="ic y">☰</div></div></div>`;
+const diyas=()=>Array.from({length:26},(_,i)=>{const a=i/26*Math.PI*2;return `<span class="diya" style="left:${422+276*Math.cos(a)-3}px;top:${164+122*Math.sin(a)-3}px"></span>`}).join('');
+function seats(){const pos=seatPos(M.players.length,422,164,300,130);return M.players.map((p,i)=>{if(p.me)return'';const {x,y}=pos[i];
+ const cl=['#e6007e','#00b8a9','#ff7a00','#ffb81c','#8f6bff','#00b8a9'][i];
+ return `<div class="seat ${p.folded?'fold':''}" style="left:${x}px;top:${y}px">${!p.folded?`<div class="minis">${card('back')}${card('back')}${card('back')}</div>`:''}<div class="av" style="box-shadow:0 0 0 3px ${cl},0 0 0 5px #fff3">${p.av}${p.dealer?'<span class="dl">D</span>':''}</div>
+ <div class="tagbox"><div class="nm">${p.n}${p.seen&&!p.folded?' 👀':''}</div><div class="bl"><i></i>${p.bal.toLocaleString()}</div></div><span class="st ${p.last.startsWith('Raised')?'r':p.folded?'d':''}">${p.last}</span></div>`}).join('')}
+document.getElementById('table').innerHTML=`${lanterns()}${topBar()}<div class="table"></div><div class="mandala"></div>${diyas()}
+ <div class="pot"><div class="l">POT</div><div class="v">340</div><div class="s">Classic · stake 20</div></div>${seats()}
+ <div class="stake">Stake <b>20</b><div>Blind 20 · Seen 40</div><div style="color:#ffd9a8">raised by Devika</div></div>
+ <div class="me" style="left:206px"><div class="timer" style="box-shadow:0 0 0 3px var(--mari)">🦁${ring(64,.72,'#ffb81c','rgba(0,0,0,.4)',4)}</div><div style="font-weight:800;font-size:12px;line-height:1.1">YOUR<br>TURN<br><span style="color:var(--mari)">32s</span></div></div>
+ <div class="hand" style="left:316px">${M.myCards.map(c=>card(c)).join('')}</div><div class="hl" style="left:300px;width:228px">Pure Sequence!</div>
+ <div class="acts"><div class="b g">Chaal<small>pay 40</small></div><div class="b o">Raise 40<small>pay 80</small></div><div class="b p">Sideshow<small>pay 40</small></div><div class="b r">Pack</div></div>`;
+const burst=(x,y,c)=>Array.from({length:14},(_,i)=>{const a=i/14*Math.PI*2;return `<span class="spark" style="left:${x+38*Math.cos(a)}px;top:${y+38*Math.sin(a)}px;background:${c};box-shadow:0 0 8px ${c}"></span>`}).join('');
+document.getElementById('result').innerHTML=`${lanterns()}${topBar()}
+ ${burst(120,90,'#ffb81c')}${burst(730,80,'#e6007e')}${burst(690,300,'#00b8a9')}${burst(150,300,'#ff7a00')}
+ <div style="position:absolute;left:0;right:0;top:44px;text-align:center;font-family:Yatra;font-size:44px;color:var(--mari);text-shadow:0 4px 0 #7a2b00,0 0 24px rgba(255,184,28,.7)">Jeet gaye! 🎉</div>
+ <div style="position:absolute;left:0;right:0;top:100px;text-align:center;font-weight:800;font-size:15px">Mayank wins <span style="font-family:Yatra;color:var(--mari);font-size:22px">340 chips</span> with a Pure Sequence</div>
+ <div style="position:absolute;left:180px;top:136px;width:484px;display:flex;gap:16px;justify-content:center">${M.result.hands.map(h=>`<div style="border-radius:18px;padding:10px 12px;background:${h.win?'rgba(255,184,28,.16)':'rgba(0,0,0,.3)'};border:2px solid ${h.win?'var(--mari)':'rgba(255,255,255,.15)'};text-align:center"><div style="font-weight:800;font-size:13px">${h.win?'👑 ':''}${h.n}</div><div style="display:flex;gap:6px;margin:8px 0">${h.cards.map(c=>card(c)).join('')}</div><div style="font-weight:800;font-size:12px;color:${h.win?'var(--mari)':'#cfc6ff'}">${h.label}</div></div>`).join('')}</div>
+ <div style="position:absolute;left:180px;top:318px;width:484px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">${M.result.score.map(s=>`<span style="font-weight:800;font-size:11px;padding:2px 9px;border-radius:9px;background:${s[2]==='up'?'#12a64a':'rgba(255,255,255,.12)'}">${s[0]} ${s[1]}</span>`).join('')}</div>
+ <div class="b o" style="position:absolute;right:16px;bottom:16px;width:170px;height:50px;font-size:15px">Deal next<small>Devika deals</small></div>`;
+document.getElementById('lobby').innerHTML=`${lanterns()}${topBar()}
+ <div style="position:absolute;left:14px;top:56px;width:290px;height:318px;border-radius:22px;background:rgba(0,0,0,.3);border:2px solid rgba(255,184,28,.5);padding:14px">
+  <div style="font-weight:800;font-size:11px;color:#ffd9a8;letter-spacing:.15em">ROOM CODE</div>
+  <div style="font-family:Yatra;font-size:40px;color:var(--mari);letter-spacing:.12em;text-shadow:0 3px 0 #7a2b00">${M.room}</div>
+  <div class="b p" style="height:40px;margin:6px 0 12px">Invite friends 📲</div>
+  ${M.players.slice(0,5).map(p=>`<div style="display:flex;align-items:center;gap:9px;padding:4px 0"><div class="av" style="width:28px;height:28px;font-size:15px;box-shadow:0 0 0 2px var(--mari)">${p.av}</div><span style="flex:1;font-weight:800;font-size:13px">${p.name||p.n}</span><span style="font-weight:800;font-size:10px;background:#12a64a;border-radius:8px;padding:0 7px">Ready</span></div>`).join('')}</div>
+ <div style="position:absolute;left:318px;top:56px;width:512px;height:318px;border-radius:22px;background:rgba(0,0,0,.3);border:2px solid rgba(255,184,28,.5);padding:14px">
+  <div style="font-family:Yatra;font-size:22px;color:var(--mari)">Aap dealer ho! Game chuno</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:10px">${M.variations.map((v,i)=>{const c=['#e6007e','#00b8a9','#ff7a00','#8f6bff','#12a64a','#d1006c','#0091c7'][i];return `<div style="height:64px;border-radius:16px;padding:8px;background:linear-gradient(${c},rgba(0,0,0,.35));${i===2?'box-shadow:0 0 0 3px #fff,0 0 20px rgba(255,255,255,.4)':'box-shadow:0 3px 0 rgba(0,0,0,.4)'}"><div style="font-weight:800;font-size:14px">${v[0]}</div><div style="font-size:10.5px;font-weight:600;opacity:.9">${v[1]}</div></div>`}).join('')}<div style="height:64px;border-radius:16px;display:grid;place-items:center;font-weight:800;font-size:12px;border:2px dashed rgba(255,184,28,.6);color:var(--mari)">❓ Rules</div></div>
+  <div class="b g" style="margin-top:16px;height:52px;font-size:18px">Patte baanto! 🃏</div></div>`;
+</script></body></html>

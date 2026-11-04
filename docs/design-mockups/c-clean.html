@@ -1,0 +1,78 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+@font-face{font-family:Man;src:url(node_modules/@fontsource/manrope/files/manrope-latin-500-normal.woff2);font-weight:500}
+@font-face{font-family:Man;src:url(node_modules/@fontsource/manrope/files/manrope-latin-700-normal.woff2);font-weight:700}
+@font-face{font-family:Man;src:url(node_modules/@fontsource/manrope/files/manrope-latin-800-normal.woff2);font-weight:800}
+:root{--bg:#0e1013;--p:#171a1f;--p2:#1f232a;--line:#2a2f38;--txt:#eef0f3;--mut:#8b93a1;--acc:#ff6a3d;--acc2:#ffb199;--grn:#2fd27a;--felt:#123a31;--felt2:#0d2b25}
+*{box-sizing:border-box;margin:0}
+body{background:#000;font-family:Man,Inter,sans-serif;color:var(--txt)}
+.screen{width:844px;height:390px;position:relative;overflow:hidden;margin-bottom:10px;background:var(--bg)}
+.top{position:absolute;top:10px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:center}
+.t1{font-weight:800;font-size:15px}.t2{font-size:11px;color:var(--mut);font-weight:500}
+.icons{display:flex;gap:6px}.ic{height:30px;min-width:30px;padding:0 8px;border-radius:10px;background:var(--p2);display:grid;place-items:center;font-size:12px;color:var(--mut);font-weight:700}
+.dot{position:relative}.dot::after{content:'2';position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:var(--acc);color:#fff;font-size:9px;display:grid;place-items:center}
+.tablebox{position:absolute;left:14px;top:48px;width:494px;height:328px;border-radius:28px;background:var(--p)}
+.felt{position:absolute;left:34px;top:50px;width:426px;height:232px;border-radius:116px;background:radial-gradient(ellipse at 50% 35%,#18493d,var(--felt) 60%,var(--felt2));box-shadow:inset 0 2px 14px rgba(0,0,0,.45),0 0 0 6px #1b1f25}
+.pot{position:absolute;left:247px;top:168px;transform:translate(-50%,-50%);text-align:center}
+.pot .l{font-size:10px;font-weight:700;color:#9cc5b8;letter-spacing:.12em}.pot .v{font-size:36px;font-weight:800;letter-spacing:-.02em}
+.pot .s{font-size:10.5px;color:#9cc5b8;font-weight:500}
+.seat{position:absolute;transform:translate(-50%,-50%);text-align:center;width:80px}
+.av{width:40px;height:40px;margin:0 auto;border-radius:50%;display:grid;place-items:center;font-size:20px;position:relative;background:var(--p2)}
+.av .ring{position:absolute;inset:-5px}
+.nm{font-size:11.5px;font-weight:700;margin-top:3px}.bl{font-size:11px;color:var(--mut);font-weight:500}
+.chip{display:inline-block;margin-top:3px;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--p2);color:var(--txt)}
+.chip.a{background:rgba(255,106,61,.16);color:var(--acc2)}.chip.f{color:var(--mut);background:transparent;border:1px solid var(--line)}
+.fold{opacity:.4}
+.dl{position:absolute;bottom:-3px;right:-5px;width:16px;height:16px;border-radius:50%;background:#fff;color:#000;font-size:9px;font-weight:800;display:grid;place-items:center}
+/* right panel */
+.side{position:absolute;left:520px;top:48px;width:310px;height:328px;display:flex;flex-direction:column;gap:8px}
+.card{position:relative;width:62px;height:88px;border-radius:12px;background:#fff;color:#111;box-shadow:0 8px 20px rgba(0,0,0,.4)}
+.card.red{color:#e5383b}.card .rk{position:absolute;left:8px;top:5px;font-size:20px;font-weight:800}.card .st{position:absolute;left:9px;top:28px;font-size:13px}.card .pip{position:absolute;right:8px;bottom:4px;font-size:30px}
+.card.back{background:linear-gradient(135deg,#ff6a3d,#ff9a5a)}.card.back i{position:absolute;inset:4px;border-radius:8px;border:1.5px solid rgba(255,255,255,.45)}
+.mine{border-radius:20px;background:var(--p);padding:12px;display:flex;align-items:center;gap:12px}
+.mine .cards{display:flex;gap:6px}
+.lab{font-weight:800;font-size:15px}.sub{font-size:11px;color:var(--mut);font-weight:500}
+.info{border-radius:16px;background:var(--p);padding:9px 12px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.info div{font-size:10px;color:var(--mut);font-weight:500}.info b{display:block;font-size:15px;color:var(--txt);font-weight:800}
+.acts{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.b{height:46px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:13.5px;line-height:1.15}
+.b small{font-weight:500;font-size:10px;opacity:.8}
+.b.p{background:var(--acc);color:#fff}.b.s{background:var(--p2);color:var(--txt)}.b.x{background:transparent;color:#ff6b6b;border:1.5px solid #3a2a2c}
+.turn{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--acc2)}
+.bar{flex:1;height:5px;border-radius:3px;background:var(--p2);overflow:hidden}.bar i{display:block;height:100%;width:70%;background:var(--acc)}
+.mini{display:flex;justify-content:center;gap:2px;margin-bottom:3px}.mini .card{width:11px;height:15px;border-radius:3px;box-shadow:none}.mini .card i{display:none}
+.panel{position:absolute;border-radius:24px;background:var(--p)}
+</style></head><body>
+<section class="screen" id="table"></section><section class="screen" id="result"></section><section class="screen" id="lobby"></section>
+<script>
+const M=MOCK;const COL=['#ff6a3d','#7c8cff','#2fd27a','#ffc145','#ff5fa2','#38c7ff'];
+const topBar=(a,b)=>`<div class="top"><div><div class="t1">${a}</div><div class="t2">${b}</div></div><div class="icons"><div class="ic dot">💬</div><div class="ic">Activity</div><div class="ic">☰</div></div></div>`;
+function seats(){const pos=seatPos(M.players.length,261,213,214,118);return M.players.map((p,i)=>{if(p.me)return'';const {x,y}=pos[i];
+ return `<div class="seat ${p.folded?'fold':''}" style="left:${x}px;top:${y}px">${!p.folded?`<div class="mini">${card('back')}${card('back')}${card('back')}</div>`:''}<div class="av" style="box-shadow:0 0 0 2.5px ${COL[i]}">${p.av}${p.dealer?'<span class="dl">D</span>':''}</div><div class="nm">${p.n}</div><div class="bl">${p.bal.toLocaleString()}</div><span class="chip ${p.last.startsWith('Raised')?'a':p.folded?'f':''}">${p.last}</span></div>`}).join('')}
+document.getElementById('table').innerHTML=`${topBar('Round 3 · Classic','Room FXR2ZY · 6 players')}
+ <div class="tablebox"><div class="felt"></div><div class="pot"><div class="l">POT</div><div class="v">340</div><div class="s">Stake 20 · raised by Devika</div></div></div>${seats()}
+ <div class="seat" style="left:261px;top:338px"><div class="av" style="box-shadow:0 0 0 2.5px ${COL[0]}">🦁${ring(52,.7,'#ff6a3d','transparent',3)}</div><div class="nm">You</div></div>
+ <div class="side">
+  <div class="mine"><div class="cards">${M.myCards.map(c=>card(c)).join('')}</div><div><div class="lab">Pure Sequence</div><div class="sub">A-K-Q of spades · you're seen</div></div></div>
+  <div class="info"><div>Pot<b>340</b></div><div>You put in<b>60</b></div><div>Balance<b>2,480</b></div></div>
+  <div class="turn">Your turn<div class="bar"><i></i></div>32s</div>
+  <div class="acts"><div class="b p">Chaal<small>pay 40</small></div><div class="b s">Raise to 40<small>pay 80</small></div><div class="b s">Sideshow<small>pay 40</small></div><div class="b x">Pack</div></div>
+ </div>`;
+document.getElementById('result').innerHTML=`${topBar('Round 3 finished','Decided by a show')}
+ <div class="panel" style="left:14px;top:48px;width:470px;height:328px;padding:18px">
+  <div style="display:flex;align-items:center;gap:12px"><div class="av" style="width:52px;height:52px;font-size:26px;box-shadow:0 0 0 3px var(--acc)">🦁</div><div><div style="font-size:12px;color:var(--mut);font-weight:700">WINNER</div><div style="font-size:24px;font-weight:800">Mayank</div></div><div style="margin-left:auto;text-align:right"><div style="font-size:30px;font-weight:800;color:var(--grn)">+340</div><div class="sub">net +280</div></div></div>
+  <div style="display:flex;gap:12px;margin-top:16px">${M.result.hands.map(h=>`<div style="flex:1;border-radius:18px;padding:12px;background:${h.win?'rgba(47,210,122,.08)':'var(--p2)'};${h.win?'box-shadow:inset 0 0 0 1.5px var(--grn)':''}"><div style="font-weight:800;font-size:12.5px">${h.n}</div><div style="display:flex;gap:5px;margin:8px 0">${h.cards.map(c=>card(c)).join('')}</div><div style="font-size:12px;font-weight:700;color:${h.win?'var(--grn)':'var(--mut)'}">${h.label}</div></div>`).join('')}</div></div>
+ <div class="panel" style="left:496px;top:48px;width:334px;height:328px;padding:16px">
+  <div style="font-weight:800;font-size:14px;margin-bottom:6px">This round</div>
+  ${M.result.score.map((s,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)"><span style="width:10px;height:10px;border-radius:50%;background:${COL[i]}"></span><span style="flex:1;font-weight:700;font-size:12.5px">${s[0]}</span><span style="font-weight:800;font-size:13px;color:${s[2]==='up'?'var(--grn)':'#ff6b6b'}">${s[1]}</span></div>`).join('')}
+  <div class="b p" style="margin-top:14px">Deal next round</div><div class="sub" style="text-align:center;margin-top:5px">Devika deals and picks the game</div></div>`;
+document.getElementById('lobby').innerHTML=`${topBar('Friday night','Lobby · waiting for players')}
+ <div class="panel" style="left:14px;top:48px;width:300px;height:328px;padding:16px">
+  <div class="sub">Room code</div><div style="font-size:38px;font-weight:800;letter-spacing:.14em">${M.room}</div>
+  <div class="b p" style="height:40px;margin:8px 0 12px">Copy invite link</div>
+  ${M.players.slice(0,5).map((p,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:5px 0"><div class="av" style="width:28px;height:28px;font-size:14px;box-shadow:0 0 0 2px ${COL[i]}">${p.av}</div><span style="flex:1;font-weight:700;font-size:12.5px">${p.name||p.n}</span><span style="font-size:10px;font-weight:700;color:var(--grn)">● Ready</span></div>`).join('')}</div>
+ <div class="panel" style="left:326px;top:48px;width:504px;height:328px;padding:16px">
+  <div style="font-weight:800;font-size:16px">You deal this round</div><div class="sub">Pick the game everyone plays</div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px">${M.variations.map((v,i)=>`<div style="height:64px;border-radius:16px;padding:10px;background:${i===2?'rgba(255,106,61,.12)':'var(--p2)'};${i===2?'box-shadow:inset 0 0 0 2px var(--acc)':''}"><div style="font-weight:800;font-size:13px">${v[0]}</div><div class="sub" style="margin-top:3px">${v[1]}</div></div>`).join('')}<div style="height:64px;border-radius:16px;display:grid;place-items:center;font-weight:700;font-size:11.5px;color:var(--acc2);border:1.5px dashed var(--line)">How to play?</div></div>
+  <div class="b p" style="margin-top:16px;height:50px;font-size:15px">Deal the cards</div></div>`;
+</script></body></html>

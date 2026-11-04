@@ -1,0 +1,150 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+@font-face{font-family:Cinzel;src:url(node_modules/@fontsource/cinzel/files/cinzel-latin-600-normal.woff2);font-weight:600}
+@font-face{font-family:Cinzel;src:url(node_modules/@fontsource/cinzel/files/cinzel-latin-800-normal.woff2);font-weight:800}
+@font-face{font-family:Corm;src:url(node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-600-normal.woff2);font-weight:600}
+@font-face{font-family:Corm;src:url(node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-700-normal.woff2);font-weight:700}
+:root{--gold:#d8b45a;--gold2:#f3dc95;--gold3:#9a7a2c;--em:#0c4a36;--em2:#06281d;--ivory:#f6eedb;--maroon:#6d1222;--wood:#3b2414}
+*{box-sizing:border-box;margin:0}
+body{background:#000;font-family:Inter,sans-serif;color:var(--ivory)}
+.screen{width:844px;height:390px;position:relative;overflow:hidden;margin:0 0 10px;
+ background:radial-gradient(ellipse at 50% 40%,#1d150c 0%,#0b0805 70%,#050403 100%)}
+.screen::before{content:'';position:absolute;inset:0;opacity:.07;background:
+ repeating-conic-gradient(from 0deg at 50% 50%, #d8b45a 0deg 2deg, transparent 2deg 15deg);mask:radial-gradient(circle at 50% 45%,#000 0,transparent 75%)}
+.cin{font-family:Cinzel,serif;letter-spacing:.12em}
+.corm{font-family:Corm,serif}
+/* top bar */
+.top{position:absolute;top:10px;left:16px;right:16px;display:flex;align-items:center;justify-content:space-between;z-index:5}
+.brand{font-family:Cinzel;font-weight:800;font-size:15px;color:var(--gold);letter-spacing:.2em;text-shadow:0 1px 0 #000}
+.brand small{display:block;font-weight:600;font-size:9px;color:#a99467;letter-spacing:.28em}
+.icons{display:flex;gap:8px}
+.ic{width:32px;height:32px;border-radius:50%;border:1px solid rgba(216,180,90,.6);display:grid;place-items:center;color:var(--gold);font-size:14px;background:radial-gradient(circle,#1c150c,#0b0805)}
+/* table */
+.table{position:absolute;left:62px;top:40px;width:560px;height:262px;border-radius:50%;
+ background:linear-gradient(145deg,#6b4423,#2c190b 40%,#5a361a 70%,#24140a);box-shadow:0 18px 50px rgba(0,0,0,.8),inset 0 2px 1px rgba(255,220,150,.25)}
+.felt{position:absolute;inset:16px;border-radius:50%;
+ background:radial-gradient(ellipse at 50% 40%,#13704f 0%,var(--em) 50%,var(--em2) 100%);
+ box-shadow:inset 0 0 0 2px var(--gold3),inset 0 0 0 4px rgba(0,0,0,.4),inset 0 0 0 5px rgba(243,220,149,.5),inset 0 10px 40px rgba(0,0,0,.55)}
+.felt::after{content:'';position:absolute;inset:0;border-radius:50%;opacity:.13;background:
+ radial-gradient(circle at 50% 50%,transparent 9px,rgba(243,220,149,.9) 10px,transparent 11px) 0 0/34px 34px,
+ radial-gradient(circle at 50% 50%,rgba(243,220,149,.8) 0 2px,transparent 3px) 17px 17px/34px 34px}
+.mono{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center}
+.mono .lab{font-family:Cinzel;font-size:9px;letter-spacing:.35em;color:#cdb87a}
+.mono .pot{font-family:Corm;font-weight:700;font-size:46px;line-height:.95;color:var(--gold2);text-shadow:0 2px 0 #0007,0 0 20px rgba(243,220,149,.3)}
+.mono .var{font-family:Cinzel;font-size:9.5px;color:#cdb87a;letter-spacing:.2em;margin-top:4px}
+.chips{position:absolute;left:50%;top:69%;transform:translateX(-50%);display:flex;gap:3px}
+.chip{width:20px;height:20px;border-radius:50%;background:repeating-conic-gradient(var(--maroon) 0 30deg,var(--ivory) 30deg 45deg);box-shadow:0 0 0 2px var(--gold),0 2px 3px #000a;position:relative}
+.chip::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--maroon);box-shadow:inset 0 0 0 1px var(--gold)}
+.chip.g{background:repeating-conic-gradient(#173a2c 0 30deg,var(--ivory) 30deg 45deg)}.chip.g::after{background:#173a2c}
+/* seats */
+.seat{position:absolute;transform:translate(-50%,-50%);width:84px;text-align:center}
+.med{width:46px;height:46px;margin:0 auto;border-radius:50%;display:grid;place-items:center;font-size:23px;position:relative;
+ background:radial-gradient(circle at 35% 30%,#3a2a14,#120c06);box-shadow:0 0 0 2px var(--gold),0 0 0 4px #1a1209,0 0 0 5px var(--gold3),0 6px 12px #000c}
+.seat.fold .med,.seat.fold .plq{filter:grayscale(1) brightness(.6)}
+.med .ring{position:absolute;inset:-9px}
+.plq{margin-top:5px;border-radius:6px;padding:3px 4px;background:linear-gradient(#2a1c0e,#160e07);box-shadow:inset 0 0 0 1px var(--gold3),0 4px 8px #000a}
+.plq .nm{font-family:Cinzel;font-weight:600;font-size:9.5px;letter-spacing:.06em;color:var(--ivory);white-space:nowrap}
+.plq .bl{font-family:Corm;font-weight:700;font-size:14px;line-height:1;color:var(--gold2)}
+.tag{display:inline-block;margin-top:3px;padding:1px 7px;border-radius:9px;font-size:8.5px;font-weight:700;letter-spacing:.05em;background:linear-gradient(var(--gold2),var(--gold));color:#2a1a08;white-space:nowrap}
+.tag.dim{background:#2a2218;color:#8f8166}
+.dealer{position:absolute;right:-6px;bottom:-2px;width:17px;height:17px;border-radius:50%;background:var(--ivory);color:#2a1a08;font:800 9px Cinzel;display:grid;place-items:center;box-shadow:0 0 0 1.5px var(--gold)}
+.seen{position:absolute;left:-6px;bottom:-2px;width:17px;height:17px;border-radius:50%;background:#1a1209;color:var(--gold2);font-size:9px;display:grid;place-items:center;box-shadow:0 0 0 1.5px var(--gold)}
+.backs{display:flex;justify-content:center;margin-bottom:-8px}
+.backs .card{width:14px;height:20px;margin:0 -3px}
+/* cards */
+.card{position:relative;width:60px;height:86px;border-radius:7px;background:linear-gradient(160deg,#fffaf0,#efe3c6);box-shadow:0 0 0 1px #c9b27a,0 6px 14px rgba(0,0,0,.55);font-family:Corm;color:#1c1209}
+.card.red{color:#9b1b1b}
+.card .rk{position:absolute;left:6px;top:2px;font-size:21px;font-weight:700}
+.card .st{position:absolute;left:7px;top:23px;font-size:12px}
+.card .pip{position:absolute;right:7px;bottom:3px;font-size:30px}
+.card.back{background:radial-gradient(circle at 50% 50%,#d8b45a 0 3px,transparent 4px) 0 0/10px 10px,repeating-conic-gradient(from 45deg,#5d0f1d 0 25%,#7a1626 0 50%) 0 0/10px 10px;box-shadow:0 0 0 1px var(--gold),0 3px 8px #000a}
+.card.back i{position:absolute;inset:3px;border:1px solid rgba(243,220,149,.7);border-radius:4px}
+.hand{position:absolute;left:342px;top:276px;transform:translateX(-50%);display:flex;z-index:4}
+.hand .card{width:64px;height:92px;margin:0 -6px}
+.hand .card:nth-child(1){transform:rotate(-9deg) translateY(6px)}.hand .card:nth-child(3){transform:rotate(9deg) translateY(6px)}
+.hlabel{position:absolute;left:342px;top:368px;transform:translateX(-50%);z-index:5;font-family:Cinzel;font-weight:600;font-size:10px;letter-spacing:.18em;color:#2a1a08;background:linear-gradient(var(--gold2),var(--gold));padding:3px 14px;border-radius:2px;clip-path:polygon(6% 0,94% 0,100% 50%,94% 100%,6% 100%,0 50%)}
+/* right column */
+.side{position:absolute;right:16px;top:52px;width:180px;display:flex;flex-direction:column;gap:7px;z-index:5}
+.stake{border-radius:8px;padding:6px 9px;background:linear-gradient(#20160b,#120c06);box-shadow:inset 0 0 0 1px var(--gold3)}
+.stake .r{display:flex;justify-content:space-between;align-items:baseline;font-size:10px;color:#cdb87a}
+.stake .v{font-family:Corm;font-weight:700;font-size:22px;color:var(--gold2);line-height:1}
+.dots{display:flex;gap:3px;margin-top:4px}.dots i{flex:1;height:3px;border-radius:2px;background:#3a2e1a}.dots i.on{background:var(--gold)}
+.turn{text-align:center;font-family:Cinzel;font-size:10px;letter-spacing:.2em;color:var(--gold2)}
+.btn{height:44px;border-radius:7px;display:flex;flex-direction:column;justify-content:center;align-items:center;font-family:Cinzel;font-weight:800;font-size:13px;letter-spacing:.08em;line-height:1.1}
+.btn small{font-family:Inter;font-weight:600;font-size:9.5px;letter-spacing:0;opacity:.75}
+.btn.g{background:linear-gradient(#f6e3a2,#d8b45a 45%,#a6832f);color:#2a1a08;box-shadow:inset 0 1px 0 #fff8,0 3px 0 #6b5216,0 6px 12px #000a}
+.btn.o{background:linear-gradient(#1f170c,#120c06);color:var(--gold2);box-shadow:inset 0 0 0 1px var(--gold),0 3px 0 #000}
+.btn.m{background:linear-gradient(#8a1a2d,#5a0d19);color:#f8d9d9;box-shadow:inset 0 0 0 1px #c4535f,0 3px 0 #2b060c}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+/* overlay screens */
+.veil{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,rgba(10,8,4,.55),rgba(0,0,0,.92));z-index:8}
+.panel{position:absolute;z-index:9;border-radius:14px;background:linear-gradient(#22170b,#100a05);box-shadow:inset 0 0 0 1px var(--gold),inset 0 0 0 4px #100a05,inset 0 0 0 5px var(--gold3),0 20px 60px #000}
+.victory{font-family:Cinzel;font-weight:800;font-size:30px;letter-spacing:.3em;background:linear-gradient(#fff4c6,#d8b45a 55%,#8f6d22);-webkit-background-clip:text;color:transparent;text-align:center}
+.rays{position:absolute;left:50%;top:50%;width:900px;height:900px;transform:translate(-50%,-50%);background:repeating-conic-gradient(rgba(243,220,149,.07) 0 6deg,transparent 6deg 18deg);z-index:8;mask:radial-gradient(circle,#000 0,transparent 60%)}
+.lobbybox{position:absolute;border-radius:12px;background:linear-gradient(#1f150b,#0e0905);box-shadow:inset 0 0 0 1px var(--gold3),0 10px 30px #000a}
+</style></head><body>
+<section class="screen" id="table"></section>
+<section class="screen" id="result"></section>
+<section class="screen" id="lobby"></section>
+<script>
+const M = MOCK;
+function topBar(sub){return `<div class="top"><div class="brand">TEEN PATTI<small>ROOM ${M.room} · ${sub}</small></div><div class="icons"><div class="ic">💬</div><div class="ic">📜</div><div class="ic">☰</div></div></div>`}
+function seats(){
+  const pos = seatPos(M.players.length, 342, 184, 300, 128);
+  return M.players.map((p,i)=>{ if(p.me) return '';
+    const {x,y}=pos[i];
+    return `<div class="seat ${p.folded?'fold':''}" style="left:${x}px;top:${y}px">
+      ${!p.folded?`<div class="backs">${card('back')}${card('back')}${card('back')}</div>`:''}
+      <div class="med">${p.av}${p.dealer?'<span class="dealer">D</span>':''}${p.seen&&!p.folded?'<span class="seen">👁</span>':''}</div>
+      <div class="plq"><div class="nm">${p.n}</div><div class="bl">${p.bal.toLocaleString()}</div></div>
+      <div class="tag ${p.folded?'dim':''}">${p.last.toUpperCase()}</div></div>`}).join('');
+}
+document.getElementById('table').innerHTML = `${topBar('ROUND 3')}
+ <div class="table"><div class="felt"></div></div>
+ <div class="mono" style="left:342px;top:166px"><div class="lab">THE POT</div><div class="pot">340</div><div class="var">CLASSIC · STAKE 20</div></div>
+ <div class="chips" style="left:342px;top:218px"><span class="chip"></span><span class="chip g"></span><span class="chip"></span><span class="chip"></span><span class="chip g"></span></div>
+ ${seats()}
+ <div class="seat" style="left:192px;top:318px"><div class="med">🦁${ring(64,.72,'#f3dc95','rgba(0,0,0,.4)',3)}<span class="seen">👁</span></div><div class="plq"><div class="nm">YOU · 32s</div><div class="bl">2,480</div></div></div>
+ <div class="hand">${M.myCards.map(c=>card(c)).join('')}</div>
+ <div class="hlabel">PURE SEQUENCE</div>
+ <div class="side">
+   <div class="stake"><div class="r"><span class="cin">STAKE</span><span class="v">20</span></div><div class="r"><span>Blind 20 · Seen 40</span><span>max 640</span></div><div class="dots"><i class="on"></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div></div>
+   <div class="turn">YOUR TURN</div>
+   <div class="btn g">CHAAL<small>pay 40</small></div>
+   <div class="btn g">RAISE TO 40<small>pay 80</small></div>
+   <div class="row2"><div class="btn o">SIDESHOW<small>pay 40</small></div><div class="btn m">PACK</div></div>
+ </div>`;
+document.getElementById('result').innerHTML = `${topBar('ROUND 3 FINISHED')}
+ <div class="table"><div class="felt"></div></div>${seats()}
+ <div class="veil"></div><div class="rays"></div>
+ <div class="panel" style="left:172px;top:34px;width:500px;height:330px;padding:16px 22px">
+   <div class="victory">VICTORY</div>
+   <div style="text-align:center;margin-top:2px;font-family:Cinzel;font-size:11px;letter-spacing:.2em;color:#cdb87a">MAYANK WINS THE POT · DECIDED BY A SHOW</div>
+   <div style="display:flex;justify-content:center;gap:26px;margin-top:14px">
+    ${M.result.hands.map(h=>`<div style="text-align:center;padding:10px 12px;border-radius:10px;${h.win?'background:rgba(216,180,90,.12);box-shadow:inset 0 0 0 1px #d8b45a':''}">
+      <div style="font-family:Cinzel;font-weight:600;font-size:11px;letter-spacing:.12em">${h.win?'👑 ':''}${h.n.toUpperCase()}</div>
+      <div style="display:flex;gap:4px;margin-top:6px">${h.cards.map(c=>card(c)).join('')}</div>
+      <div style="margin-top:6px;font-family:Corm;font-weight:700;font-size:16px;color:${h.win?'#f3dc95':'#cdb87a'}">${h.label}</div></div>`).join('')}
+   </div>
+   <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+     <div style="font-family:Corm;font-weight:700;font-size:34px;color:#f3dc95">+340</div>
+     <div style="display:grid;grid-template-columns:repeat(3,auto);gap:2px 14px;font-size:10.5px">${M.result.score.map(s=>`<span>${s[0]} <b style="color:${s[2]==='up'?'#f3dc95':'#d97a7a'}">${s[1]}</b></span>`).join('')}</div>
+     <div class="btn g" style="width:150px">DEAL NEXT<small>Devika deals · picks the game</small></div>
+   </div>
+ </div>`;
+document.getElementById('lobby').innerHTML = `${topBar('LOBBY')}
+ <div class="lobbybox" style="left:16px;top:52px;width:300px;height:320px;padding:14px">
+   <div class="cin" style="font-size:9px;color:#a99467;text-align:center">ROOM CODE</div>
+   <div style="font-family:Cinzel;font-weight:800;font-size:34px;letter-spacing:.3em;text-align:center;color:#f3dc95;margin:2px 0 8px">${M.room}</div>
+   <div class="btn g" style="height:38px">COPY INVITATION</div>
+   <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px">${M.players.slice(0,5).map(p=>`<div style="display:flex;align-items:center;gap:9px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px rgba(216,180,90,.25)">
+     <span style="font-size:18px">${p.av}</span><span style="flex:1;font-family:Cinzel;font-size:11px;letter-spacing:.06em">${p.name||p.n}${p.me?' 👑':''}</span><span style="font-size:9px;font-weight:700;color:#2a1a08;background:#d8b45a;border-radius:8px;padding:1px 6px">READY</span><span style="font-family:Corm;font-weight:700;color:#f3dc95">1,000</span></div>`).join('')}</div>
+ </div>
+ <div class="lobbybox" style="left:330px;top:52px;width:498px;height:320px;padding:14px">
+   <div style="display:flex;align-items:center;gap:10px"><div class="med" style="width:36px;height:36px;font-size:18px">🦁</div><div><div class="cin" style="font-size:9px;color:#a99467">DEALER THIS ROUND</div><div style="font-family:Cinzel;font-weight:800;font-size:16px;color:#f6eedb">YOU · CHOOSE THE GAME</div></div></div>
+   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px">${M.variations.map((v,i)=>`<div style="height:62px;border-radius:9px;padding:8px;${i===2?'background:linear-gradient(#3a2a12,#1c140a);box-shadow:inset 0 0 0 2px #f3dc95,0 0 18px rgba(243,220,149,.25)':'background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px rgba(216,180,90,.35)'}">
+     <div style="font-family:Cinzel;font-weight:800;font-size:12px;color:${i===2?'#f3dc95':'#f6eedb'}">${v[0].toUpperCase()}</div><div style="font-size:9.5px;color:#a99467;margin-top:3px">${v[1]}</div></div>`).join('')}
+     <div style="height:62px;border-radius:9px;display:grid;place-items:center;font-family:Cinzel;font-size:10px;color:#a99467;box-shadow:inset 0 0 0 1px dashed rgba(216,180,90,.35)">? RULES</div></div>
+   <div class="btn g" style="margin-top:14px;height:48px;font-size:15px">DEAL THE CARDS</div>
+ </div>`;
+</script></body></html>

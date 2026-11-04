@@ -1,0 +1,114 @@
+<!doctype html><html><head><meta charset="utf-8"><script src="common.js"></script>
+<style>
+@font-face{font-family:Orb;src:url(node_modules/@fontsource/orbitron/files/orbitron-latin-700-normal.woff2);font-weight:700}
+@font-face{font-family:Orb;src:url(node_modules/@fontsource/orbitron/files/orbitron-latin-900-normal.woff2);font-weight:900}
+@font-face{font-family:SG;src:url(node_modules/@fontsource/space-grotesk/files/space-grotesk-latin-500-normal.woff2);font-weight:500}
+@font-face{font-family:SG;src:url(node_modules/@fontsource/space-grotesk/files/space-grotesk-latin-700-normal.woff2);font-weight:700}
+:root{--bg:#06050c;--cy:#22e6ff;--mg:#ff2bd6;--lm:#b6ff3b;--glass:rgba(18,18,34,.72);--line:rgba(120,140,255,.18)}
+*{box-sizing:border-box;margin:0}
+body{background:#000;font-family:SG,sans-serif;color:#e9ecff}
+.screen{width:844px;height:390px;position:relative;overflow:hidden;margin-bottom:10px;background:
+ radial-gradient(600px 300px at 15% 0%,rgba(255,43,214,.18),transparent 60%),
+ radial-gradient(600px 320px at 90% 100%,rgba(34,230,255,.16),transparent 60%),var(--bg)}
+.screen::before{content:'';position:absolute;inset:0;background:
+ linear-gradient(rgba(120,140,255,.06) 1px,transparent 1px) 0 0/28px 28px,linear-gradient(90deg,rgba(120,140,255,.06) 1px,transparent 1px) 0 0/28px 28px;
+ mask:linear-gradient(#000,transparent 80%)}
+.orb{font-family:Orb}.mono{font-family:'JetBrains Mono',monospace}
+.top{position:absolute;top:8px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:center;z-index:5}
+.logo{font-family:Orb;font-weight:900;font-size:15px;letter-spacing:.14em;color:#fff;text-shadow:0 0 10px var(--mg),0 0 2px #fff}
+.logo span{color:var(--cy);text-shadow:0 0 10px var(--cy)}
+.pill{font-size:10px;padding:4px 10px;border-radius:20px;background:var(--glass);border:1px solid var(--line);color:#aab3ff;margin-left:8px}
+.icons{display:flex;gap:7px}.ic{width:30px;height:30px;border-radius:9px;background:var(--glass);border:1px solid var(--line);display:grid;place-items:center;font-size:13px}
+.ic.badge{border-color:var(--mg);box-shadow:0 0 12px rgba(255,43,214,.5)}
+/* table: stadium glass */
+.table{position:absolute;left:96px;top:44px;width:652px;height:212px;border-radius:120px;
+ background:radial-gradient(ellipse at 50% 40%,rgba(40,30,90,.65),rgba(10,10,24,.9));
+ border:2px solid var(--cy);box-shadow:0 0 18px rgba(34,230,255,.55),0 0 50px rgba(34,230,255,.2),inset 0 0 40px rgba(34,230,255,.15),inset 0 0 0 10px rgba(255,255,255,.02)}
+.table::after{content:'TEEN PATTI';position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);font:900 34px Orb;letter-spacing:.3em;color:rgba(255,255,255,.035)}
+.pot{position:absolute;left:422px;top:118px;transform:translate(-50%,-50%);text-align:center;z-index:3}
+.pot .l{font-size:10px;letter-spacing:.4em;color:#8f97d9}
+.pot .v{font:900 40px Orb;color:#fff;text-shadow:0 0 14px var(--mg),0 0 30px rgba(255,43,214,.6)}
+.pot .s{font-size:10px;color:var(--cy);letter-spacing:.15em}
+/* seats */
+.seat{position:absolute;transform:translate(-50%,-50%);width:96px;padding:6px 7px;border-radius:12px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(6px);display:flex;gap:7px;align-items:center;z-index:2}
+.seat.fold{opacity:.38}
+.seat.turn{border-color:var(--mg);box-shadow:0 0 16px rgba(255,43,214,.6)}
+.av{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:17px;background:linear-gradient(135deg,#2b1f5c,#11102a);border:1px solid rgba(255,255,255,.12);position:relative;flex:none}
+.nm{font-weight:700;font-size:11px;line-height:1.1}.bl{font-family:'JetBrains Mono';font-size:10.5px;color:var(--lm)}
+.st{position:absolute;left:50%;bottom:-11px;transform:translateX(-50%);font-size:8.5px;font-weight:700;letter-spacing:.06em;padding:1px 7px;border-radius:7px;white-space:nowrap;background:#0d0d1d;border:1px solid var(--cy);color:var(--cy)}
+.st.r{border-color:var(--mg);color:var(--mg)}.st.d{border-color:#444;color:#777}
+.dl{position:absolute;right:-5px;top:-5px;width:15px;height:15px;border-radius:5px;background:var(--lm);color:#000;font:900 8px Orb;display:grid;place-items:center}
+/* cards */
+.card{position:relative;width:54px;height:76px;border-radius:9px;background:linear-gradient(160deg,#fff,#dfe3ff);box-shadow:0 0 0 1.5px var(--cy),0 0 16px rgba(34,230,255,.45);color:#11132a;font-family:SG}
+.card.red{color:#e5197e}
+.card .rk{position:absolute;left:6px;top:3px;font-size:19px;font-weight:700}.card .st{display:none}
+.card .pip{position:absolute;right:6px;bottom:2px;font-size:28px}
+.card .st2{display:none}
+.card.back{background:linear-gradient(135deg,#ff2bd6,#6b3cff 55%,#22e6ff);box-shadow:0 0 0 1px rgba(255,255,255,.4)}
+.card.back i{position:absolute;inset:3px;border-radius:6px;border:1px solid rgba(255,255,255,.5);background:repeating-linear-gradient(45deg,rgba(255,255,255,.12) 0 2px,transparent 2px 6px)}
+.mini{display:flex;gap:2px;position:absolute;top:-14px;right:6px}.mini .card{width:12px;height:17px;border-radius:3px}.mini .card i{display:none}
+/* HUD */
+.hud{position:absolute;left:0;right:0;bottom:0;height:112px;background:linear-gradient(transparent,rgba(6,5,12,.95) 22%);border-top:1px solid rgba(34,230,255,.25);display:flex;align-items:flex-end;padding:0 14px 12px;gap:14px;z-index:6}
+.myhand{display:flex;gap:6px;align-items:flex-end}
+.myhand .card{width:62px;height:88px}
+.mylab{font:700 11px Orb;color:var(--lm);text-shadow:0 0 8px rgba(182,255,59,.6);letter-spacing:.08em;margin-top:5px}
+.meter{flex:1;align-self:center;padding:0 8px}
+.meter .row{display:flex;justify-content:space-between;font-size:10px;color:#8f97d9}
+.meter b{font-family:Orb;color:#fff}
+.segs{display:flex;gap:3px;margin:5px 0}.segs i{flex:1;height:7px;border-radius:2px;background:rgba(255,255,255,.07)}
+.segs i.on{background:var(--cy);box-shadow:0 0 8px var(--cy)}.segs i.hot{background:var(--mg);box-shadow:0 0 8px var(--mg)}
+.timer{font:700 12px Orb;color:var(--mg);text-shadow:0 0 8px var(--mg)}
+.acts{display:grid;grid-template-columns:repeat(2,124px);gap:7px}
+.b{height:40px;border-radius:20px;display:flex;flex-direction:column;align-items:center;justify-content:center;font:700 12px Orb;letter-spacing:.06em;line-height:1.1}
+.b small{font:500 9.5px SG;letter-spacing:0;opacity:.8}
+.b.p{background:linear-gradient(90deg,#ff2bd6,#8b3cff);color:#fff;box-shadow:0 0 18px rgba(255,43,214,.55)}
+.b.c{border:1.5px solid var(--cy);color:var(--cy);box-shadow:0 0 10px rgba(34,230,255,.35),inset 0 0 10px rgba(34,230,255,.15)}
+.b.x{border:1.5px solid #ff4d6a;color:#ff4d6a}
+/* overlays */
+.veil{position:absolute;inset:0;background:rgba(4,3,10,.82);backdrop-filter:blur(3px);z-index:8}
+.win{position:absolute;z-index:9;left:50%;top:22px;transform:translateX(-50%);font:900 46px Orb;letter-spacing:.12em;color:#fff;text-shadow:3px 0 0 var(--mg),-3px 0 0 var(--cy),0 0 24px rgba(255,43,214,.8)}
+.glass{position:absolute;z-index:9;border-radius:16px;background:var(--glass);border:1px solid var(--line);backdrop-filter:blur(8px)}
+</style></head><body>
+<section class="screen" id="table"></section><section class="screen" id="result"></section><section class="screen" id="lobby"></section>
+<script>
+const M=MOCK;
+const topBar=(t)=>`<div class="top"><div style="display:flex;align-items:center"><div class="logo">TEEN<span>PATTI</span></div><span class="pill">ROOM ${M.room}</span><span class="pill">${t}</span></div><div class="icons"><div class="ic badge">💬</div><div class="ic">⚡</div><div class="ic">☰</div></div></div>`;
+function seats(){const pos=seatPos(M.players.length,422,150,330,112);return M.players.map((p,i)=>{if(p.me)return'';const {x,y}=pos[i];
+ const cls=p.last.startsWith('Raised')?'r':p.folded?'d':'';
+ return `<div class="seat ${p.folded?'fold':''}" style="left:${x}px;top:${y}px">${!p.folded?`<div class="mini">${card('back')}${card('back')}${card('back')}</div>`:''}
+ <div class="av">${p.av}${p.dealer?'<span class="dl">D</span>':''}</div><div><div class="nm">${p.n}${p.seen&&!p.folded?' <span style="color:#22e6ff;font-size:9px">●SEEN</span>':''}</div><div class="bl">${p.bal.toLocaleString()}</div></div>
+ <span class="st ${cls}">${p.last.toUpperCase()}</span></div>`}).join('')}
+document.getElementById('table').innerHTML=`${topBar('ROUND 3')}<div class="table"></div>
+ <div class="pot"><div class="l">POT</div><div class="v">340</div><div class="s">CLASSIC</div></div>${seats()}
+ <div class="hud">
+  <div><div class="myhand">${M.myCards.map(c=>card(c)).join('')}</div><div class="mylab">PURE SEQUENCE ✦ SEEN</div></div>
+  <div class="meter"><div class="row"><span>STAKE <b>20</b></span><span class="timer">YOUR TURN · 0:32</span></div>
+   <div class="segs"><i class="on"></i><i class="hot"></i><i></i><i></i><i></i><i></i><i></i></div>
+   <div class="row"><span>blind 20 · seen 40</span><span>raised by Devika · max 640</span></div></div>
+  <div class="acts"><div class="b p">CHAAL<small>pay 40</small></div><div class="b p">RAISE ▲ 40<small>pay 80</small></div><div class="b c">SIDESHOW<small>pay 40</small></div><div class="b x">PACK</div></div>
+ </div>`;
+document.getElementById('result').innerHTML=`${topBar('ROUND 3')}<div class="table"></div>${seats()}<div class="veil"></div>
+ <div class="win">WINNER</div>
+ <div class="glass" style="left:60px;top:92px;width:470px;height:270px;padding:14px">
+  <div style="display:flex;align-items:center;gap:10px"><div class="av" style="width:44px;height:44px;font-size:26px;border-color:var(--mg);box-shadow:0 0 16px rgba(255,43,214,.6)">🦁</div>
+   <div><div style="font:900 20px Orb">MAYANK</div><div style="font-size:11px;color:#8f97d9">won the show · pot 340</div></div>
+   <div style="margin-left:auto;font:900 34px Orb;color:var(--lm);text-shadow:0 0 14px rgba(182,255,59,.7)">+340</div></div>
+  <div style="display:flex;gap:18px;margin-top:16px">${M.result.hands.map(h=>`<div style="flex:1;padding:10px;border-radius:12px;border:1px solid ${h.win?'var(--lm)':'var(--line)'};${h.win?'box-shadow:0 0 18px rgba(182,255,59,.3)':''}">
+   <div style="font:700 11px Orb;margin-bottom:6px">${h.n.toUpperCase()}</div><div style="display:flex;gap:4px">${h.cards.map(c=>card(c)).join('')}</div>
+   <div style="margin-top:6px;font-size:11px;color:${h.win?'var(--lm)':'#aab3ff'}">${h.label}</div></div>`).join('')}</div></div>
+ <div class="glass" style="left:546px;top:92px;width:240px;height:270px;padding:12px">
+  <div style="font:700 11px Orb;letter-spacing:.2em;color:var(--cy);margin-bottom:8px">LEADERBOARD</div>
+  ${M.result.score.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 2px;border-bottom:1px solid var(--line);font-size:12px"><span><b style="font-family:Orb;color:#555c99;margin-right:6px">${i+1}</b>${s[0]}</span><span class="mono" style="color:${s[2]==='up'?'var(--lm)':'#ff4d6a'}">${s[1]}</span></div>`).join('')}
+  <div class="b p" style="margin-top:12px">DEAL NEXT ▸</div></div>`;
+document.getElementById('lobby').innerHTML=`${topBar('LOBBY')}
+ <div class="glass" style="left:14px;top:48px;width:290px;height:328px;padding:14px">
+  <div style="font-size:10px;letter-spacing:.3em;color:#8f97d9">ROOM CODE</div>
+  <div style="font:900 40px Orb;letter-spacing:.14em;color:#fff;text-shadow:0 0 14px var(--cy)">${M.room}</div>
+  <div class="b c" style="margin:8px 0 12px">COPY INVITE LINK</div>
+  ${M.players.slice(0,5).map(p=>`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)"><div class="av" style="width:26px;height:26px;font-size:14px">${p.av}</div><span style="flex:1;font-weight:700;font-size:12px">${p.name||p.n}</span><span style="font-size:9px;color:var(--lm);border:1px solid var(--lm);border-radius:6px;padding:0 5px">READY</span></div>`).join('')}
+ </div>
+ <div class="glass" style="left:318px;top:48px;width:512px;height:328px;padding:14px">
+  <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:10px;letter-spacing:.3em;color:#8f97d9">YOU DEAL · PICK THE GAME</div><div style="font:900 18px Orb">DEALER'S CHOICE</div></div><span class="pill" style="color:var(--lm);border-color:var(--lm)">3/8 READY</span></div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px">${M.variations.map((v,i)=>`<div style="height:66px;border-radius:12px;padding:9px;border:1px solid ${i===2?'var(--mg)':'var(--line)'};${i===2?'box-shadow:0 0 18px rgba(255,43,214,.45);background:rgba(255,43,214,.08)':''}"><div style="font:700 12px Orb">${v[0].toUpperCase()}</div><div style="font-size:10px;color:#8f97d9;margin-top:4px">${v[1]}</div></div>`).join('')}<div style="height:66px;border-radius:12px;border:1px dashed var(--line);display:grid;place-items:center;font-size:11px;color:var(--cy)">? HOW TO PLAY</div></div>
+  <div class="b p" style="margin-top:16px;height:48px;font-size:15px">DEAL THE CARDS ▸</div></div>`;
+</script></body></html>
