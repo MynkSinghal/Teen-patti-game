@@ -40,9 +40,12 @@ test('look', async ({ browser }) => {
   await h.getByTestId('menu-btn').click(); await shot(h, '12-menu'); await h.keyboard.press('Escape');
   await h.getByTestId('pot-open').click(); await shot(h, '13-pot'); await h.keyboard.press('Escape');
   // finish the round: everyone else packs
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 30; i++) {
     let acted = false;
-    for (const p of ps) if (p !== ps[1] && (await p.locator('[data-testid=btn-pack]:not([disabled])').count()) > 0) { await p.getByTestId('btn-pack').click(); acted = true; break; }
+    for (const p of ps) {
+      if (p === ps[1] && (await p.locator('[data-testid=btn-bet]:not([disabled])').count()) > 0) { await p.getByTestId('btn-bet').click(); acted = true; break; }
+      if (p !== ps[1] && (await p.locator('[data-testid=btn-pack]:not([disabled])').count()) > 0) { await p.getByTestId('btn-pack').click(); acted = true; break; }
+    }
     if ((await ps[1]!.getByTestId('round-result').count()) > 0) break;
     if (!acted) await h.waitForTimeout(800);
   }
