@@ -61,7 +61,11 @@ export function Lobby({ view, send, busy }: { view: ClientView; send: (c: Comman
               <Avatar name={p.name} size={20} />
               <span className="min-w-0 flex-1 truncate font-display text-[11.5px] font-semibold">{p.name}{p.id === me.playerId && <span className="text-muted"> (you)</span>}{p.isHost && ' 👑'}</span>
               {!p.connected && <WifiOff size={11} className="text-danger" aria-label="Disconnected" />}
-              <span className={`rounded-full px-1.5 text-[9px] font-bold ${p.ready ? 'tag-gold' : 'bg-[#1a1209] text-muted ring-1 ring-line'}`}>{p.ready ? 'READY' : 'WAIT'}</span>
+              {many ? (
+                <span className={`h-2 w-2 shrink-0 rounded-full ${p.ready ? 'bg-gold shadow-[0_0_6px_#d8b45a]' : 'bg-[#3a2e1a]'}`} title={p.ready ? 'Ready' : 'Not ready'} />
+              ) : (
+                <span className={`rounded-full px-1.5 text-[9px] font-bold ${p.ready ? 'tag-gold' : 'bg-[#1a1209] text-muted ring-1 ring-line'}`}>{p.ready ? 'READY' : 'WAIT'}</span>
+              )}
               {!many && <span className="num w-12 text-right text-[14px] text-gold-soft">{p.balance.toLocaleString()}</span>}
             </li>
           ))}

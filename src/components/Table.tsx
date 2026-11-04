@@ -79,12 +79,12 @@ export function Table({ view, send, busy }: { view: ClientView; send: (c: Comman
     order.forEach((p, j) => {
       const deg = k === 1 ? 270 : start + ((end - start) * j) / (k - 1);
       const a = (deg * Math.PI) / 180;
-      map.set(p.id, { x: 50 + 43 * Math.cos(a), y: 45 + 38 * Math.sin(a) });
+      map.set(p.id, { x: 50 + (compact ? 41 : 43) * Math.cos(a), y: (compact ? 49 : 45) + 38 * Math.sin(a) });
     });
     void others;
     map.set(players[meIdx]!.id, { x: 50 - (ls ? 26 : 30), y: 81 });
     return map;
-  }, [players, meIdx, ls]);
+  }, [players, meIdx, ls, compact]);
   const seatPos = useCallback((id: string) => positions.get(id) ?? null, [positions]);
   const winners = new Set(game?.phase === 'ended' ? game.result?.payouts.map((p) => p.playerId) : []);
   const gameIds = new Set(game?.players.map((p) => p.id) ?? []);

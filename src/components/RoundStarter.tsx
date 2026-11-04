@@ -41,7 +41,7 @@ export function RoundStarter({ view, send, busy, canStart = true, startLabel, on
         {dealer && <Avatar name={dealer.name} size={32} />}
         <div className="min-w-0 flex-1 leading-tight">
           <p className="caps text-[9px] text-muted">Dealer this round</p>
-          <p className="truncate font-display text-[15px] font-semibold text-paper">{iAmDealer ? 'You · choose the game' : dealer?.name ?? '-'}</p>
+          <p className="truncate font-display text-[15px] font-semibold text-paper short:text-[13px]">{iAmDealer ? 'You · pick the game' : dealer?.name ?? '-'}</p>
         </div>
         {s.variation === 'dealers_choice' && <span className="hidden rounded-full bg-[#1a1209] px-2.5 py-1 text-[10px] text-gold-soft ring-1 ring-line sm:inline ls:inline">{dealerPicks ? 'Dealer picks' : 'Host picks'}</span>}
       </div>
@@ -66,8 +66,8 @@ export function RoundStarter({ view, send, busy, canStart = true, startLabel, on
                 className={`relative cursor-pointer rounded-lg px-2 py-1.5 text-left transition ${variation === v.id ? 'bg-gradient-to-b from-[#3a2a12] to-[#1c140a] shadow-[inset_0_0_0_1.5px_#f3dc95,0_0_14px_rgba(243,220,149,.2)]' : 'bg-[#120c06] shadow-[inset_0_0_0_1px_rgba(216,180,90,.3)]'}`}
                 data-testid={`pick-${v.id}`}
               >
-                <span className={`block font-display text-[11.5px] font-extrabold leading-tight ${variation === v.id ? 'text-gold-soft' : 'text-paper'}`}>{v.name.replace(' Teen Patti', '').replace(' (Lowest Wins)', '')}</span>
-                <span className="block truncate pr-4 text-[9.5px] text-muted">{SHORT[v.id] ?? ''}</span>
+                <span className={`block truncate pr-4 font-display text-[11.5px] font-extrabold leading-tight short:text-[10.5px] ${variation === v.id ? 'text-gold-soft' : 'text-paper'}`}>{v.name.replace(' Teen Patti', '').replace(' (Lowest Wins)', '')}</span>
+                <span className="block truncate pr-2 text-[9.5px] text-muted short:hidden">{SHORT[v.id] ?? ''}</span>
                 <span className="absolute right-1 top-1"><RulesButton variation={v.id} className="!h-[18px] !w-[18px]" /></span>
               </div>
             ))}
