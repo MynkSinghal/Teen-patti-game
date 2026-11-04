@@ -62,6 +62,8 @@ export interface EnginePlayer {
   seen: boolean;
   folded: boolean;
   sideshowRequests: number;
+  /** Most recent public action, for the table UI ("Raised to 40"). */
+  last?: { type: string; amount?: number; stake?: number } | null;
 }
 
 export interface PendingSideshow {
@@ -101,10 +103,14 @@ export interface PublicEvent {
     | 'sideshow_accepted'
     | 'sideshow_timeout'
     | 'show'
+    | 'left'
+    | 'reveal'
     | 'round_ended';
   playerId?: string;
   otherId?: string;
   amount?: number;
+  /** Stake (blind-rate) after this event, for bet/raise events. */
+  stake?: number;
 }
 
 export interface PrivateNote {
@@ -144,7 +150,8 @@ export type Action =
   | { type: 'pack' }
   | { type: 'show' }
   | { type: 'sideshow_request' }
-  | { type: 'sideshow_respond'; accept: boolean };
+  | { type: 'sideshow_respond'; accept: boolean }
+  | { type: 'reveal' };
 
 export class EngineError extends Error {
   constructor(

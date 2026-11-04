@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Command } from '@/lib/settings';
 import { AppError } from '@/server/errors';
-import { createRoom, getState, heartbeat, joinRoom, runCommand, tick } from '@/server/service';
+import { createRoom, getChat, getHistory, getState, heartbeat, joinRoom, runCommand, sendChat, tick } from '@/server/service';
 import type { Sql } from '@/server/db';
 import { dbAvailable, freshDb } from './db-setup';
 
@@ -21,7 +21,7 @@ const errCode = async (p: Promise<unknown>) => {
 
 async function table(n: number, settings: Record<string, unknown> = {}) {
   const us = users().slice(0, n);
-  const { code } = await createRoom(us[0]!, { displayName: 'Host', settings }, sql);
+  const { code } = await createRoom(us[0]!, { displayName: 'Host', settings: { variation: 'classic', ...settings } }, sql);
   for (let i = 1; i < n; i++) await joinRoom(us[i]!, code, `P${i}`, sql);
   for (let i = 1; i < n; i++) await run(us[i]!, code, { type: 'ready', ready: true });
   return { code, us };
@@ -75,7 +75,7 @@ d('service (postgres)', () => {
 
   it('needs 3 ready players to start', async () => {
     const us = users();
-    const { code } = await createRoom(us[0]!, { displayName: 'Host' }, sql);
+    const { code } = await createRoom(us[0]!, { displayName: 'Host', settings: { variation: 'classic' } }, sql);
     await joinRoom(us[1]!, code, 'A', sql);
     await joinRoom(us[2]!, code, 'B', sql);
     await run(us[1]!, code, { type: 'ready', ready: true });
@@ -263,5 +263,115 @@ d('service (postgres)', () => {
     expect(views.map((v) => v.room.game!.players.length)).toEqual([6, 6, 3]);
     const codes = new Set(rooms.map((r) => r.code));
     expect(codes.size).toBe(3);
+  });
+
+  it('dealer rotates every round and the DEALER (not only the host) picks the variation', async () => {
+    const { code, us } = await table(3, { variation: 'dealers_choice' });
+    const ids = await idMap(us, code);
+    let v = await getState(us[0]!, code, sql);
+    expect(v.room.nextDealerId).toBe(ids[us[0]!]); // host deals first
+    v = await run(us[0]!, code, { type: 'start_round', variation: 'classic' });
+    expect(gameOf(v).dealerSeat).toBe(0);
+    // end the round quickly: everyone packs
+    for (let i = 0; i < 2; i++) v = await run(turnUser(us, v, ids), code, { type: 'pack', gameVersion: gameOf(v).version });
+    v = await getState(us[1]!, code, sql);
+    expect(v.room.nextDealerId).toBe(ids[us[1]!]); // seat 1 deals next
+    // a non-dealer, non-host can't start; the dealer can, picking muflis
+    expect(await errCode(run(us[2]!, code, { type: 'start_round', variation: 'muflis' }))).toBe('FORBIDDEN');
+    v = await run(us[1]!, code, { type: 'start_round', variation: 'muflis' });
+    expect(gameOf(v).variation).toBe('muflis');
+    expect(gameOf(v).dealerSeat).toBe(1);
+    for (let i = 0; i < 2; i++) v = await run(turnUser(us, v, ids), code, { type: 'pack', gameVersion: gameOf(v).version });
+    expect((await getState(us[0]!, code, sql)).room.nextDealerId).toBe(ids[us[2]!]);
+    // host may always override
+    v = await run(us[0]!, code, { type: 'start_round', variation: 'ak47' });
+    expect(gameOf(v).variation).toBe('ak47');
+    expect(gameOf(v).dealerSeat).toBe(2);
+  });
+
+  it('host-chooser mode: dealer cannot start', async () => {
+    const { code, us } = await table(3, { variation: 'dealers_choice', variationChooser: 'host' });
+    let v = await run(us[0]!, code, { type: 'start_round', variation: 'classic' });
+    const ids = await idMap(us, code);
+    for (let i = 0; i < 2; i++) v = await run(turnUser(us, v, ids), code, { type: 'pack', gameVersion: gameOf(v).version });
+    expect(await errCode(run(us[1]!, code, { type: 'start_round', variation: 'muflis' }))).toBe('FORBIDDEN');
+  });
+
+  it('leaving mid-round packs you, chips stay in the pot, turn moves on, you are removed', async () => {
+    const { code, us } = await table(4);
+    let v = await run(us[0]!, code, { type: 'start_round' });
+    const ids = await idMap(us, code);
+    const t = turnUser(us, v, ids);
+    v = await run(t, code, { type: 'bet', gameVersion: gameOf(v).version }); // pot 50
+    const leaver = us.find((u) => u !== t && ids[u] === gameOf(v).turnId)!; // next to act leaves
+    const left = await run(leaver, code, { type: 'leave' });
+    void left;
+    v = await getState(us.find((u) => u !== leaver)!, code, sql);
+    expect(v.room.players).toHaveLength(3);
+    expect(gameOf(v).pot).toBe(50);
+    expect(gameOf(v).players.find((p) => p.id === ids[leaver])!.folded).toBe(true);
+    expect(gameOf(v).turnId).not.toBe(ids[leaver]);
+    expect(await errCode(getState(leaver, code, sql))).toBe('FORBIDDEN');
+    const total = v.room.players.reduce((s, p) => s + p.balance, 0) + gameOf(v).pot;
+    expect(total).toBe(4000 - 990); // the leaver walked out with their remaining 990 chips; their 10 boot stays in the pot
+  });
+
+  it('host leaving mid-round hands hosting to someone else and the round continues', async () => {
+    const { code, us } = await table(3);
+    await run(us[0]!, code, { type: 'start_round' });
+    await run(us[0]!, code, { type: 'leave' });
+    const v = await getState(us[1]!, code, sql);
+    expect(v.room.players).toHaveLength(2);
+    expect(v.room.hostId).not.toBeNull();
+    expect(v.room.status).toMatch(/playing|between/);
+  });
+
+  it('winner can reveal after everyone else packed; others cannot', async () => {
+    const { code, us } = await table(3);
+    let v = await run(us[0]!, code, { type: 'start_round' });
+    const ids = await idMap(us, code);
+    for (let i = 0; i < 2; i++) v = await run(turnUser(us, v, ids), code, { type: 'pack', gameVersion: gameOf(v).version });
+    const winner = us.find((u) => gameOf(v).result!.payouts[0]!.playerId === ids[u])!;
+    const loser = us.find((u) => u !== winner)!;
+    expect(gameOf(v).result!.reveal).toHaveLength(0);
+    expect(await errCode(run(loser, code, { type: 'reveal' }))).toBe('INVALID_ACTION');
+    v = await run(winner, code, { type: 'reveal' });
+    expect(gameOf(v).result!.reveal.map((r) => r.playerId)).toEqual([ids[winner]]);
+    // revealed cards are public now; an unrevealed player's hand is not
+    expect(JSON.stringify((await getState(loser, code, sql)).room)).toContain('"label"');
+  });
+
+  it('chat: members only, trimmed, rate limited, capped at 100, delivered in order', async () => {
+    const { code, us } = await table(3);
+    const outsider = randomUUID();
+    expect(await errCode(sendChat(outsider, code, 'hi', sql))).toBe('FORBIDDEN');
+    expect(await errCode(getChat(outsider, code, sql))).toBe('FORBIDDEN');
+    const m1 = await sendChat(us[1]!, code, 'hello <b>all</b>', sql);
+    expect(m1.body).toBe('hello <b>all</b>'); // stored as text; the UI renders it escaped
+    expect(await errCode(sendChat(us[1]!, code, 'spam', sql))).toBe('RATE_LIMITED');
+    await sendChat(us[2]!, code, 'second', sql);
+    const msgs = await getChat(us[0]!, code, sql);
+    expect(msgs.map((m) => m.body)).toEqual(['hello <b>all</b>', 'second']);
+    expect(msgs[0]!.name).toBe('P1');
+    for (let i = 0; i < 105; i++) {
+      await sql`insert into chat_messages (room_id, player_id, display_name, body, created_at) select room_id, id, display_name, ${'m' + i}, now() - interval '1 hour' from players where auth_user_id = ${us[0]!}`;
+    }
+    await sendChat(us[0]!, code, 'trim', sql);
+    const [{ n }] = (await sql`select count(*)::int as n from chat_messages where room_id = (select id from rooms where room_code = ${code})`) as unknown as [{ n: number }];
+    expect(n).toBeLessThanOrEqual(100);
+  });
+
+  it('history exposes finished rounds without private data', async () => {
+    const { code, us } = await table(3);
+    let v = await run(us[0]!, code, { type: 'start_round' });
+    const ids = await idMap(us, code);
+    await run(us[1]!, code, { type: 'see' });
+    for (let i = 0; i < 2; i++) v = await run(turnUser(us, v, ids), code, { type: 'pack', gameVersion: gameOf(v).version });
+    const h = await getHistory(us[2]!, code, sql);
+    expect(h).toHaveLength(1);
+    expect(h[0]!.round).toBe(1);
+    const json = JSON.stringify(h);
+    expect(json).not.toMatch(/"suit"|"cards"|sideshow_result|yourCards/);
+    expect(await errCode(getHistory(randomUUID(), code, sql))).toBe('FORBIDDEN');
   });
 });

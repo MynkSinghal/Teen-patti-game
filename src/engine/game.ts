@@ -191,6 +191,7 @@ function pay(state: EngineState, p: EnginePlayer, amount: number) {
 export function applyAction(prev: EngineState, playerId: string, action: Action, now: number): StepOutput {
   const state = clone(prev);
   const events: PublicEvent[] = [];
+  if (action.type === 'reveal') return revealHand(state, playerId, events);
   if (state.phase === 'ended') throw new EngineError('ROUND_ENDED', 'This round is over.');
   const me = getPlayer(state, playerId);
   if (!me) throw new EngineError('NOT_IN_ROUND', 'You are not in this round.');
@@ -230,12 +231,14 @@ export function applyAction(prev: EngineState, playerId: string, action: Action,
       const cost = betCost(state.rules, state.stake, me, raise);
       pay(state, me, cost);
       if (raise) state.stake = raisedStake(state.rules, state.stake);
-      push(state, events, { type: raise ? 'raise' : 'bet', playerId, amount: cost });
+      push(state, events, { type: raise ? 'raise' : 'bet', playerId, amount: cost, stake: state.stake });
+      me.last = { type: raise ? 'raise' : 'bet', amount: cost, stake: state.stake };
       assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
       return { state, events };
     }
     case 'pack': {
       me.folded = true;
+      me.last = { type: 'pack' };
       push(state, events, { type: 'pack', playerId });
       if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
       return { state, events };
@@ -245,6 +248,7 @@ export function applyAction(prev: EngineState, playerId: string, action: Action,
       const cost = showCost(state, me);
       pay(state, me, cost);
       push(state, events, { type: 'show', playerId, amount: cost });
+      me.last = { type: 'show', amount: cost };
       const other = activePlayers(state).find((p) => p.id !== playerId)!;
       doShowdown(state, events, [me, other], playerId);
       return { state, events };
@@ -259,6 +263,7 @@ export function applyAction(prev: EngineState, playerId: string, action: Action,
       state.pending = { requesterId: playerId, responderId: target.id, amount: cost };
       state.turnDeadline = now + state.rules.sideshowSeconds * 1000;
       push(state, events, { type: 'sideshow_request', playerId, otherId: target.id, amount: cost });
+      me.last = { type: 'sideshow_request', amount: cost };
       return { state, events };
     }
   }
@@ -300,6 +305,7 @@ function resolveSideshow(state: EngineState, events: PublicEvent[], accept: bool
   note(res, req, sRes, sReq, 'responder');
   if (loser) {
     loser.folded = true;
+    loser.last = { type: 'pack' };
     push(state, events, { type: 'pack', playerId: loser.id });
     if (finishIfLastStanding(state, events)) return;
   }
@@ -329,6 +335,7 @@ export function processTimeout(prev: EngineState, now: number): StepOutput | nul
   } else {
     const p = getPlayer(state, state.turnId!)!;
     p.folded = true;
+    p.last = { type: 'pack' };
     push(state, events, { type: 'timeout_pack', playerId: p.id });
     if (!finishIfLastStanding(state, events)) assignTurn(state, nextActiveAfter(state, p.id).id, now, events);
   }
@@ -339,7 +346,7 @@ export function processTimeout(prev: EngineState, now: number): StepOutput | nul
 
 export interface LegalActions {
   see: boolean;
-  bet: { cost: number; raiseCost: number | null } | null;
+  bet: { cost: number; raiseCost: number | null; raiseTo: number | null } | null;
   pack: boolean;
   sideshow: { targetId: string; cost: number } | null;
   show: { cost: number } | null;
@@ -360,7 +367,8 @@ export function legalActions(state: EngineState, playerId: string): LegalActions
   const call = betCost(state.rules, state.stake, me, false);
   if (me.balance >= call) {
     const rc = canRaise(state.rules, state.stake) ? betCost(state.rules, state.stake, me, true) : null;
-    out.bet = { cost: call, raiseCost: rc !== null && me.balance >= rc ? rc : null };
+    const affordable = rc !== null && me.balance >= rc;
+    out.bet = { cost: call, raiseCost: affordable ? rc : null, raiseTo: affordable ? raisedStake(state.rules, state.stake) : null };
     const t = sideshowTarget(state, me);
     if (t && me.balance >= chaalCost(state.rules, state.stake, true)) {
       out.sideshow = { targetId: t.id, cost: chaalCost(state.rules, state.stake, true) };
@@ -380,6 +388,13 @@ export function publicView(state: EngineState, dealerSeat = state.dealerSeat) {
     phase: state.phase,
     pot: state.pot,
     stake: state.stake,
+    rules: {
+      minStake: state.rules.minStake,
+      maxStake: state.rules.maxStake,
+      raiseFactor: state.rules.raiseFactor,
+      blindMultiplier: state.rules.blindMultiplier,
+      seenMultiplier: state.rules.seenMultiplier,
+    },
     blindCost: chaalCost(state.rules, state.stake, false),
     seenCost: chaalCost(state.rules, state.stake, true),
     turnId: state.turnId,
@@ -394,6 +409,7 @@ export function publicView(state: EngineState, dealerSeat = state.dealerSeat) {
       committed: p.committed,
       seen: p.seen,
       folded: p.folded,
+      last: p.last ?? null,
     })),
     result: state.result,
     log: state.log.slice(-20),
@@ -404,7 +420,8 @@ export type PublicGameView = ReturnType<typeof publicView>;
 export function privateView(state: EngineState, playerId: string) {
   const me = getPlayer(state, playerId);
   const ended = state.phase === 'ended';
-  const canSee = !!me && !me.folded && (me.seen || (ended && state.result?.reason === 'show' && state.result.reveal.some((r) => r.playerId === playerId)));
+  // Your own cards are visible to you once you've looked, and always once the round is over.
+  const canSee = !!me && (ended || (!me.folded && me.seen));
   const v = getVariation(state.variation);
   return {
     inRound: !!me,
@@ -417,3 +434,49 @@ export function privateView(state: EngineState, playerId: string) {
   };
 }
 export type PrivateGameView = ReturnType<typeof privateView>;
+
+/* ---------------- leaving & voluntary reveal ---------------- */
+
+function revealHand(state: EngineState, playerId: string, events: PublicEvent[]): StepOutput {
+  const r = state.result;
+  if (state.phase !== 'ended' || !r) throw new EngineError('INVALID_ACTION', 'You can reveal your hand when the round is over.');
+  const won = r.payouts.some((p) => p.playerId === playerId);
+  if (!won) throw new EngineError('INVALID_ACTION', 'Only the winner may reveal their hand.');
+  if (r.reveal.some((x) => x.playerId === playerId)) throw new EngineError('INVALID_ACTION', 'Your hand is already revealed.');
+  const cards = state.hands[playerId];
+  if (!cards) throw new EngineError('NOT_IN_ROUND', 'You are not in this round.');
+  const v = getVariation(state.variation);
+  r.reveal.push({ playerId, cards, label: v.score(cards, state.ctx).label });
+  push(state, events, { type: 'reveal', playerId });
+  return { state, events };
+}
+
+/**
+ * A player walks away mid-round: they pack immediately (chips already in the pot stay there).
+ * Handles turn hand-off and a pending sideshow involving them. No-op if they are not an active player.
+ */
+export function leaveRound(prev: EngineState, playerId: string, now: number): StepOutput {
+  const state = clone(prev);
+  const events: PublicEvent[] = [];
+  const me = getPlayer(state, playerId);
+  if (!me || me.folded || state.phase === 'ended') return { state, events };
+  const wasTurn = state.turnId === playerId;
+  const pend = state.pending;
+  me.folded = true;
+  me.last = { type: 'pack' };
+  push(state, events, { type: 'left', playerId });
+  if (finishIfLastStanding(state, events)) return { state, events };
+  if (pend && pend.responderId === playerId) {
+    // The responder left: treat as a declined sideshow.
+    state.pending = pend;
+    const req = getPlayer(state, pend.requesterId)!;
+    push(state, events, { type: 'sideshow_declined', playerId, otherId: req.id });
+    assignTurn(state, nextActiveAfter(state, req.id).id, now, events);
+  } else if (pend && pend.requesterId === playerId) {
+    // The requester left: the request is void (their fee stays in the pot).
+    assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+  } else if (wasTurn) {
+    assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
+  }
+  return { state, events };
+}

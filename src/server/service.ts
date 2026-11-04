@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import {
   applyAction,
+  leaveRound,
   processTimeout,
   startRound,
   type PrivateGameView,
@@ -19,6 +20,7 @@ import { AppError } from './errors';
 import {
   buildMe,
   buildPublicRoom,
+  computeNextDealer,
   type ClientView,
   type GameRow,
   type PlayerRow,
@@ -141,7 +143,7 @@ async function persist(ctx: Ctx): Promise<ClientView> {
     if (ended) {
       const [{ ended_at }] = (await tx`select ended_at from games where id = ${game.id}`) as unknown as [{ ended_at: Date }];
       game.ended_at = ended_at;
-      if (engine.result?.reason === 'show') {
+      if (engine.result?.reveal.length) {
         const ids = engine.result.reveal.map((r) => r.playerId);
         await tx`update player_hands set is_revealed = true where game_id = ${game.id} and player_id = any(${ids}::uuid[])`;
       }
@@ -237,8 +239,7 @@ async function beginRound(ctx: Ctx, variation: string, variationOptions: Record<
         : `Need at least 2 ready players with enough chips for the boot (have ${parts.length}).`,
     );
   }
-  const seats = parts.map((p) => p.seat_number).sort((a, b) => a - b);
-  const dealerSeat = seats.find((s) => s > room.dealer_seat) ?? seats[0]!;
+  const dealerSeat = computeNextDealer(room, ctx.players)!.seat_number;
   const round = room.round_number + 1;
   const { state, events } = startRound({
     round,
@@ -425,7 +426,7 @@ export async function heartbeat(userId: string, code: string, sql: Sql = getSql(
 /* Commands                                                            */
 /* ------------------------------------------------------------------ */
 
-const GAME_COMMANDS = new Set(['see', 'bet', 'pack', 'show', 'sideshow_request', 'sideshow_respond']);
+const GAME_COMMANDS = new Set(['see', 'bet', 'pack', 'show', 'sideshow_request', 'sideshow_respond', 'reveal']);
 
 export async function runCommand(userId: string, code: string, cmd: Command, sql: Sql = getSql()): Promise<ClientView> {
   // Process overdue deadlines first in their own transaction so they persist even if this command is rejected.
@@ -458,6 +459,20 @@ async function getStateTickOnly(userId: string, code: string, sql: Sql) {
 }
 
 async function runGameCommand(ctx: Ctx, cmd: Command) {
+  if (cmd.type === 'reveal') {
+    if (!ctx.engine || !ctx.game) throw new AppError('ROUND_ENDED', 'There is no round to reveal.');
+    try {
+      const r = applyAction(ctx.engine, ctx.me.id, { type: 'reveal' }, ctx.nowMs);
+      ctx.engine = r.state;
+      ctx.events.push(...r.events);
+      ctx.engineChanged = true;
+      ctx.bumpGame = true;
+    } catch (e) {
+      if (e instanceof EngineError) throw new AppError(e.code, e.message);
+      throw e;
+    }
+    return;
+  }
   if (!ctx.engine || !ctx.game || ctx.game.status !== 'active') throw new AppError('ROUND_ENDED', 'There is no round in progress.');
   if ('gameVersion' in cmd && cmd.gameVersion !== undefined && cmd.gameVersion !== ctx.game.game_version) {
     throw new AppError('STALE_STATE', 'The table changed while you were acting. Check the table and try again.');
@@ -521,8 +536,14 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
       return;
     }
     case 'leave': {
-      const inRound = ctx.engine && roundActive(ctx) && ctx.engine.players.some((p) => p.id === me.id && !p.folded);
-      if (inRound) throw new AppError('NOT_ALLOWED', 'Pack your hand or wait for the round to end before leaving.');
+      // Mid-round: pack immediately; chips already in the pot stay there.
+      if (ctx.engine && roundActive(ctx) && ctx.engine.players.some((p) => p.id === me.id && !p.folded)) {
+        const r = leaveRound(ctx.engine, me.id, ctx.nowMs);
+        ctx.engine = r.state;
+        ctx.events.push(...r.events);
+        ctx.engineChanged = true;
+        ctx.bumpGame = true;
+      }
       const others = ctx.players.filter((p) => p.id !== me.id);
       if (others.length === 0) {
         room.host_player_id = null;
@@ -536,7 +557,6 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
       await tx`update rooms set host_player_id = ${room.host_player_id} where id = ${room.id}`;
       await tx`delete from players where id = ${me.id}`;
       ctx.players = others;
-      ctx.me = { ...me }; // stale view of self is acceptable for the leaver's final response
       return;
     }
     case 'rebuy': {
@@ -554,7 +574,9 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
       return;
     }
     case 'start_round': {
-      requireHost(ctx);
+      const dealer = computeNextDealer(room, ctx.players);
+      const dealerMayStart = room.settings.variationChooser === 'dealer' && dealer?.id === me.id;
+      if (me.id !== room.host_player_id && !dealerMayStart) throw new AppError('FORBIDDEN', 'Only the dealer or the host can start the round.');
       if (roundActive(ctx)) throw new AppError('NOT_ALLOWED', 'A round is already in progress.');
       let variation = room.settings.variation as string;
       let options = room.settings.variationOptions as Record<string, unknown>;
@@ -572,3 +594,85 @@ async function runRoomCommand(ctx: Ctx, cmd: Command) {
 }
 
 export type { ClientView, PrivateGameView };
+
+/* ------------------------------------------------------------------ */
+/* Chat & history                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface ChatMessage {
+  id: number;
+  pid: string | null;
+  name: string;
+  body: string;
+  at: number;
+}
+
+async function memberOf(tx: Tx | Sql, userId: string, code: string) {
+  const rows = await tx`
+    select p.id, p.display_name, r.id as room_id, r.status, r.expires_at
+    from players p join rooms r on r.id = p.room_id
+    where r.room_code = ${code} and p.auth_user_id = ${userId}`;
+  if (!rows.length) {
+    const exists = await tx`select 1 from rooms where room_code = ${code}`;
+    throw exists.length ? new AppError('FORBIDDEN', 'You are not a member of this room.') : new AppError('NOT_FOUND', 'That room does not exist.');
+  }
+  return rows[0]!;
+}
+
+const mapChat = (r: Record<string, unknown>): ChatMessage => ({
+  id: Number(r.id),
+  pid: (r.player_id as string | null) ?? null,
+  name: r.display_name as string,
+  body: r.body as string,
+  at: new Date(r.created_at as string).getTime(),
+});
+
+export async function getChat(userId: string, code: string, sql: Sql = getSql()): Promise<ChatMessage[]> {
+  const m = await memberOf(sql, userId, code);
+  const rows = await sql`select id, player_id, display_name, body, created_at from chat_messages where room_id = ${m.room_id} order by id desc limit 50`;
+  return rows.map(mapChat).reverse();
+}
+
+export async function sendChat(userId: string, code: string, body: string, sql: Sql = getSql()): Promise<ChatMessage> {
+  const m = await memberOf(sql, userId, code);
+  if (m.status === 'closed') throw new AppError('ROOM_CLOSED', 'This room was closed by the host.');
+  const recent = await sql`select 1 from chat_messages where player_id = ${m.id} and created_at > now() - interval '700 milliseconds'`;
+  if (recent.length) throw new AppError('RATE_LIMITED', 'Slow down a little.');
+  const [row] = await sql`
+    insert into chat_messages (room_id, player_id, display_name, body) values (${m.room_id}, ${m.id}, ${m.display_name}, ${body})
+    returning id, player_id, display_name, body, created_at`;
+  // keep only the latest 100 messages per room
+  await sql`
+    delete from chat_messages where room_id = ${m.room_id}
+      and id < coalesce((select id from chat_messages where room_id = ${m.room_id} order by id desc offset 99 limit 1), 0)`;
+  return mapChat(row!);
+}
+
+export interface RoundHistory {
+  round: number;
+  variation: string;
+  endedAt: number | null;
+  result: unknown;
+  players: unknown;
+  log: unknown;
+}
+
+/** Finished rounds, public data only (never hands that weren't revealed, never private notes). */
+export async function getHistory(userId: string, code: string, sql: Sql = getSql()): Promise<RoundHistory[]> {
+  const m = await memberOf(sql, userId, code);
+  const rows = await sql`
+    select round_number, ended_at,
+           engine_state->'ctx'->>'name' as variation_name,
+           engine_state->'result' as result,
+           engine_state->'players' as players,
+           engine_state->'log' as log
+    from games where room_id = ${m.room_id} and status = 'ended' order by round_number desc limit 15`;
+  return rows.map((r) => ({
+    round: Number(r.round_number),
+    variation: r.variation_name as string,
+    endedAt: r.ended_at ? new Date(r.ended_at as string).getTime() : null,
+    result: r.result,
+    players: r.players,
+    log: r.log,
+  }));
+}

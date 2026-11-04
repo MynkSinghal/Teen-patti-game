@@ -20,7 +20,9 @@ export const roomSettingsSchema = z
     startingChips: int(100, 1_000_000).default(1000),
     boot: int(1, 100_000).default(10),
     maxPlayers: int(3, 8).default(8),
-    variation: z.enum(VARIATION_IDS).default('classic'),
+    variation: z.enum(VARIATION_IDS).default('dealers_choice'),
+    /** Who picks the variation each round when variation = dealers_choice. */
+    variationChooser: z.enum(['dealer', 'host']).default('dealer'),
     variationOptions: variationOptionsSchema.default({}),
     turnSeconds: int(10, 180).default(45),
     // betting rules (all optional overrides of the centralised defaults)
@@ -99,5 +101,14 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('show'), idempotencyKey: key, gameVersion: gv }),
   z.object({ type: z.literal('sideshow_request'), idempotencyKey: key, gameVersion: gv }),
   z.object({ type: z.literal('sideshow_respond'), idempotencyKey: key, gameVersion: gv, accept: z.boolean() }),
+  z.object({ type: z.literal('reveal'), idempotencyKey: key }),
 ]);
 export type Command = z.infer<typeof commandSchema>;
+
+export const chatSchema = z.object({
+  body: z
+    .string()
+    .transform((v) => v.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim())
+    .pipe(z.string().min(1, 'Type a message').max(200, 'Message is too long (max 200)')),
+  idempotencyKey: key,
+});

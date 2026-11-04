@@ -5,6 +5,8 @@ import { baseContext, classicScore, negate, settleWinnerTakesAll } from './base'
 import type { OptionDef, Variation } from './types';
 
 export type { Variation, OptionDef } from './types';
+export { VARIATION_DOCS, RANKING_EXAMPLES } from './docs';
+export type { VariationDoc } from './docs';
 
 const classic: Variation = {
   id: 'classic',

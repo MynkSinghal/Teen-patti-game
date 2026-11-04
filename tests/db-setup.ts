@@ -13,6 +13,7 @@ export async function freshDb() {
     end $$;
   `);
   await sql.unsafe(readFileSync('supabase/migrations/0001_core_schema.sql', 'utf8'));
+  await sql.unsafe(readFileSync('supabase/migrations/0003_chat.sql', 'utf8'));
   return sql;
 }
 

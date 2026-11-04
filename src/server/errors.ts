@@ -22,7 +22,8 @@ export type ErrorCode =
   | 'NO_PENDING_SIDESHOW'
   | 'SHOW_NOT_ALLOWED'
   | 'NOT_ENOUGH_PLAYERS'
-  | 'INVALID_ACTION';
+  | 'INVALID_ACTION'
+  | 'RATE_LIMITED';
 
 const STATUS: Partial<Record<ErrorCode, number>> = {
   UNAUTHENTICATED: 401,
@@ -32,6 +33,7 @@ const STATUS: Partial<Record<ErrorCode, number>> = {
   ROOM_CLOSED: 410,
   INVALID_INPUT: 400,
   INTERNAL: 500,
+  RATE_LIMITED: 429,
 };
 
 export class AppError extends Error {

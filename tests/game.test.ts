@@ -274,7 +274,7 @@ describe('zero balance policy', () => {
   it('cannot bet more than balance', () => {
     let s = mkRound(3, { balance: 60 }); // 50 after boot
     s = act(s, 'p0', { type: 'see' });
-    expect(legalActions(s, 'p0').bet).toEqual({ cost: 20, raiseCost: 40 });
+    expect(legalActions(s, 'p0').bet).toEqual({ cost: 20, raiseCost: 40, raiseTo: 20 });
     s = act(s, 'p0', { type: 'bet', raise: true }); // stake 20, pays 40 -> balance 10
     expect(s.players[0]!.balance).toBe(10);
     expect(legalActions(s, 'p0').bet).toBeNull();
@@ -320,5 +320,91 @@ describe('property: chip conservation & no negatives', () => {
       }
       return total(s) === start;
     }), { numRuns: 300 });
+  });
+});
+
+import { leaveRound } from '@/engine/game';
+
+describe('last action, raise data', () => {
+  it('records last action and stake on raises', () => {
+    let s = mkRound(3);
+    s = act(s, 'p0', { type: 'bet', raise: true });
+    expect(s.players[0]!.last).toEqual({ type: 'raise', amount: 20, stake: 20 });
+    expect(s.log.at(-1)).toMatchObject({ type: 'raise', playerId: 'p0', amount: 20, stake: 20 });
+    expect(publicView(s).players[0]!.last!.type).toBe('raise');
+    const l = legalActions(s, 'p1');
+    expect(l.bet).toEqual({ cost: 20, raiseCost: 40, raiseTo: 40 });
+    s = act(s, 'p1', { type: 'pack' });
+    expect(s.players[1]!.last).toEqual({ type: 'pack' });
+  });
+  it('blind-then-seen raise ladder reaches the cap exactly and hides raise afterwards', () => {
+    let s = mkRound(3, { rules: { maxStake: 40 }, balance: 5000 });
+    s = act(s, 'p0', { type: 'bet', raise: true });
+    s = act(s, 'p1', { type: 'bet', raise: true });
+    expect(s.stake).toBe(40);
+    expect(legalActions(s, 'p2').bet!.raiseTo).toBeNull();
+    expect(code(() => act(s, 'p2', { type: 'bet', raise: true }))).toBe('INVALID_BET');
+  });
+});
+
+describe('leaving mid-round', () => {
+  it('packs the leaver, keeps their chips in the pot, passes the turn', () => {
+    let s = mkRound(4);
+    s = act(s, 'p0', { type: 'bet' });
+    const r = leaveRound(s, 'p1', NOW + 1000);
+    expect(r.state.players[1]!.folded).toBe(true);
+    expect(r.state.pot).toBe(50);
+    expect(r.state.turnId).toBe('p2');
+    expect(r.events[0]!.type).toBe('left');
+  });
+  it('last player standing wins when others leave; chips conserved', () => {
+    let s = mkRound(3);
+    s = leaveRound(s, 'p0', NOW).state;
+    s = leaveRound(s, 'p2', NOW).state;
+    expect(s.phase).toBe('ended');
+    expect(s.players[1]!.balance).toBe(1020);
+    expect(total(s)).toBe(3000);
+  });
+  it('responder leaving a sideshow counts as decline; requester leaving voids it', () => {
+    let s = mkRound(4);
+    s = act(s, 'p0', { type: 'see' }); s = act(s, 'p0', { type: 'bet' });
+    s = act(s, 'p1', { type: 'see' }); s = act(s, 'p1', { type: 'sideshow_request' });
+    const a = leaveRound(s, 'p0', NOW + 5);
+    expect(a.state.phase).toBe('betting');
+    expect(a.state.turnId).toBe('p2');
+    const b = leaveRound(s, 'p1', NOW + 5);
+    expect(b.state.phase).toBe('betting');
+    expect(b.state.pending).toBeNull();
+    expect(b.state.turnId).toBe('p2');
+    expect(total(b.state)).toBe(4000);
+  });
+  it('is a no-op for a folded player or after the round', () => {
+    let s = mkRound(3);
+    s = act(s, 'p0', { type: 'pack' });
+    expect(leaveRound(s, 'p0', NOW).events).toEqual([]);
+    expect(leaveRound(s, 'nobody', NOW).events).toEqual([]);
+  });
+});
+
+describe('end of round reveal', () => {
+  it('own cards always visible to yourself at the end; winner may reveal after a last-standing win', () => {
+    let s = mkRound(3, { hands: ['AS KH 3D', '2S 3H 5D', '4S 6H 9D'] });
+    s = act(s, 'p0', { type: 'pack' });
+    s = act(s, 'p1', { type: 'pack' });
+    expect(s.result!.reveal).toEqual([]);
+    expect(privateView(s, 'p0').cards).toHaveLength(3); // own hand after round end
+    expect(code(() => act(s, 'p1', { type: 'reveal' }))).toBe('INVALID_ACTION'); // only winner
+    s = act(s, 'p2', { type: 'reveal' });
+    expect(s.result!.reveal.map((r) => r.playerId)).toEqual(['p2']);
+    expect(code(() => act(s, 'p2', { type: 'reveal' }))).toBe('INVALID_ACTION');
+    expect(code(() => act(mkRound(3), 'p0', { type: 'reveal' }))).toBe('INVALID_ACTION'); // round running
+  });
+  it('multiple winners: tie split pays both exactly the pot', () => {
+    let s = mkRound(3, { hands: ['2S 3H 5D', 'AS KH 3D', 'AH KD 3C'], rules: { tieHandling: 'split' } });
+    s = act(s, 'p0', { type: 'pack' });
+    s = act(s, 'p1', { type: 'show' });
+    expect(s.result!.payouts).toHaveLength(2);
+    expect(s.result!.reveal).toHaveLength(2);
+    expect(total(s)).toBe(3000);
   });
 });

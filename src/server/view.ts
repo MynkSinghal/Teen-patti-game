@@ -58,6 +58,10 @@ export interface PublicRoomState {
   players: PublicPlayer[];
   game: (PublicGameView & { version: number }) | null;
   nextRoundAt: number | null;
+  /** The player who deals (and, in dealer mode, picks the variation) next round. */
+  nextDealerId: string | null;
+  /** After this time the host may pick on behalf of a slow dealer. */
+  chooseDeadline: number | null;
 }
 export interface MeState {
   playerId: string;
@@ -68,6 +72,16 @@ export interface ClientView {
   room: PublicRoomState;
   me: MeState;
   serverTime: number;
+}
+
+/** Next dealer: the host for the first round, then the next funded, ready seat after the previous dealer. */
+export function computeNextDealer(room: RoomRow, players: PlayerRow[]): PlayerRow | null {
+  const parts = players
+    .filter((p) => (p.is_ready || p.id === room.host_player_id) && p.chip_balance >= room.settings.boot)
+    .sort((a, b) => a.seat_number - b.seat_number);
+  if (!parts.length) return null;
+  if (room.round_number === 0) return parts.find((p) => p.id === room.host_player_id) ?? parts[0]!;
+  return parts.find((p) => p.seat_number > room.dealer_seat) ?? parts[0]!;
 }
 
 export function buildPublicRoom(
@@ -106,6 +120,8 @@ export function buildPublicRoom(
       })),
     game: gameView,
     nextRoundAt,
+    nextDealerId: room.status === 'playing' ? null : computeNextDealer(room, players)?.id ?? null,
+    chooseDeadline: room.status === 'between' && game?.ended_at ? game.ended_at.getTime() + 30_000 : null,
   };
 }
 
