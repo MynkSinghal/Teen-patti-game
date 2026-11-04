@@ -1,73 +1,120 @@
 'use client';
-import { AnimatePresence, motion } from 'motion/react';
-import { Trophy } from 'lucide-react';
+import { motion } from 'motion/react';
+import { Crown, Eye, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import type { CommandInput } from '@/hooks/useRoom';
 import type { ClientView } from '@/server/view';
-import { Countdown } from './Countdown';
+import { Avatar } from './Avatar';
+import { Confetti } from './Confetti';
 import { PlayingCard } from './PlayingCard';
+import { RoundStarter } from './RoundStarter';
+
+const SHARE: Record<string, string> = { high: 'High hand', low: 'Low hand' };
 
 export function RoundEnd({ view, send, busy }: { view: ClientView; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
   const { room, me } = view;
   const game = room.game;
-  const [dealerPick, setDealerPick] = useState('classic');
   if (!game || game.phase !== 'ended' || !game.result) return null;
   const r = game.result;
-  const name = (id: string) => room.players.find((p) => p.id === id)?.name ?? 'Player';
+  const gp = (id: string) => game.players.find((p) => p.id === id);
+  const name = (id: string) => (id === me.playerId ? 'You' : room.players.find((p) => p.id === id)?.name ?? gp(id)?.name ?? 'Player');
   const meP = room.players.find((p) => p.id === me.playerId);
   const broke = !!meP && meP.balance < room.settings.boot;
-  const iWon = r.payouts.some((p) => p.playerId === me.playerId);
+  const myPayout = r.payouts.filter((p) => p.playerId === me.playerId).reduce((s, p) => s + p.amount, 0);
+  const myIn = gp(me.playerId)?.committed ?? 0;
+  const iWon = myPayout > 0;
+  const net = myPayout - myIn;
+  const winnerIds = [...new Set(r.payouts.map((p) => p.playerId))];
+  const multi = winnerIds.length > 1;
+  const revealed = new Map(r.reveal.map((x) => [x.playerId, x]));
+  // Everyone who did not pack: show their cards if revealed, otherwise a face-down hand.
+  const standing = game.players.filter((p) => !p.folded);
+  const canReveal = r.reason === 'last_standing' && winnerIds.includes(me.playerId) && !revealed.has(me.playerId);
+  const nets = game.players
+    .map((p) => ({ p, net: r.payouts.filter((x) => x.playerId === p.id).reduce((s, x) => s + x.amount, 0) - p.committed }))
+    .sort((a, b) => b.net - a.net);
+
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-2xl border border-gold/50 bg-panel p-4 text-center"
-        data-testid="round-result"
-      >
-        <Trophy className="mx-auto text-gold" size={22} />
-        <p className="mt-1 font-display text-xl text-gold-soft" data-testid="winner-text">
-          {r.payouts.map((p) => `${p.playerId === me.playerId ? 'You' : name(p.playerId)} won ${p.amount}${p.share && p.share !== 'all' ? ` (${p.share})` : ''}`).join(' · ')}
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 rounded-2xl border border-gold/50 bg-panel p-4" data-testid="round-result">
+      {iWon && <Confetti />}
+      <div className="text-center">
+        <Trophy className="mx-auto text-gold" size={24} />
+        <p className="mt-1 font-display text-2xl text-gold-soft" data-testid="winner-text">
+          {multi ? 'Pot shared' : `${name(winnerIds[0]!)} won ${r.payouts[0]!.amount}`}
         </p>
-        <p className="text-xs text-muted">
-          {r.reason === 'show' ? 'Decided by a show' : 'Everyone else packed'}
-          {iWon ? ' — nice hand!' : ''}
+        <p className="text-xs text-muted">{r.reason === 'show' ? 'Decided by a show' : 'Everyone else packed'} · pot {r.pot}</p>
+        <p className={`mt-1 text-sm font-semibold ${net >= 0 ? 'text-gold-soft' : 'text-danger'}`} data-testid="my-net">
+          {myIn > 0 ? (iWon ? `You won ${myPayout} (net ${net >= 0 ? '+' : ''}${net})` : `You lost ${myIn}`) : ''}
         </p>
-        {r.reveal.length > 0 && (
-          <ul className="mt-2 space-y-2">
-            {r.reveal.map((x) => (
-              <li key={x.playerId} className="flex items-center justify-center gap-2 text-sm">
-                <span className="w-16 truncate text-right text-muted">{name(x.playerId)}</span>
-                <span className="flex gap-0.5">{x.cards.map((c, i) => <PlayingCard key={i} card={c} size="sm" delay={i * 0.08} />)}</span>
-                <span className="w-28 text-left text-xs text-paper/80">{x.label}</span>
+      </div>
+
+      <ul className="space-y-1.5" data-testid="winners">
+        {r.payouts.map((p, i) => {
+          const rev = revealed.get(p.playerId);
+          return (
+            <li key={i} className="flex items-center gap-3 rounded-xl bg-gold/10 px-3 py-2 ring-1 ring-gold/40">
+              <Avatar name={name(p.playerId)} size={34} crown />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{name(p.playerId)}{multi && <span className="ml-1 text-xs text-gold-soft">{p.share && SHARE[p.share] ? `· ${SHARE[p.share]}` : '· tie'}</span>}</p>
+                {rev && <p className="text-[11px] text-paper/70">{rev.label}</p>}
+              </div>
+              <span className="font-display text-xl text-gold-soft tabular-nums">+{p.amount}</span>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div>
+        <p className="label">Hands at the end</p>
+        <ul className="space-y-2" data-testid="end-hands">
+          {standing.map((p) => {
+            const rev = revealed.get(p.id);
+            const isWinner = winnerIds.includes(p.id);
+            const isMe = p.id === me.playerId;
+            const own = isMe ? me.private?.cards ?? null : null;
+            return (
+              <li key={p.id} className={`flex items-center gap-2 rounded-xl px-2 py-1.5 ${isWinner ? 'bg-gold/10' : 'bg-panel-2'}`}>
+                <span className="flex w-[74px] items-center gap-1 text-xs"><Crown size={12} className={isWinner ? 'text-gold' : 'invisible'} /><span className="truncate">{name(p.id)}</span></span>
+                <span className="flex gap-0.5">
+                  {[0, 1, 2].map((i) => <PlayingCard key={i} card={rev?.cards[i] ?? (own ? own[i] : null)} faceDown={!rev && !own} size="sm" delay={i * 0.12} />)}
+                </span>
+                <span className="min-w-0 flex-1 text-right text-[11px] text-paper/80">{rev ? rev.label : own ? 'Your hand (private)' : 'Not shown'}</span>
               </li>
-            ))}
-          </ul>
+            );
+          })}
+        </ul>
+        {game.players.some((p) => p.folded) && <p className="mt-1 text-[11px] text-muted">Packed hands stay private.</p>}
+        {canReveal && (
+          <button className="btn btn-ghost mt-2 flex w-full items-center justify-center gap-2" disabled={busy} onClick={() => send({ type: 'reveal' })} data-testid="reveal-btn">
+            <Eye size={16} /> Show my cards to the table
+          </button>
         )}
-        <div className="mt-3 space-y-2">
-          {broke && (
-            <button className="btn btn-ghost w-full" disabled={busy} onClick={() => send({ type: 'rebuy' })} data-testid="rebuy">Top up to {room.settings.startingChips} chips</button>
-          )}
-          {me.isHost ? (
-            <>
-              {room.settings.variation === 'dealers_choice' && (
-                <select className="input" value={dealerPick} onChange={(e) => setDealerPick(e.target.value)} aria-label="Next variation">
-                  {['classic', 'muflis', 'ak47', 'joker', 'nine99', 'ten20', 'hilo'].map((v) => <option key={v} value={v}>{v}</option>)}
-                </select>
-              )}
-              <button className="btn btn-gold w-full" disabled={busy} onClick={() => send({ type: 'start_round', ...(room.settings.variation === 'dealers_choice' ? { variation: dealerPick as never } : {}) })} data-testid="next-round">
-                Next round
-              </button>
-            </>
-          ) : (
-            <p className="text-xs text-muted">Waiting for the host to deal the next round…</p>
-          )}
-          {room.nextRoundAt && (
-            <p className="text-xs text-muted">Next round starts automatically in <Countdown deadline={room.nextRoundAt} />.</p>
-          )}
-        </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+
+      <div>
+        <p className="label">Round result</p>
+        <ul className="divide-y divide-line text-sm" data-testid="scoreboard">
+          {nets.map(({ p, net: n }) => (
+            <li key={p.id} className="flex items-center justify-between py-1">
+              <span className={p.folded ? 'text-muted' : ''}>{name(p.id)}{p.folded && ' · packed'}</span>
+              <span className={`tabular-nums ${n > 0 ? 'text-gold-soft' : n < 0 ? 'text-danger' : 'text-muted'}`}>{n > 0 ? '+' : ''}{n}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {broke && <TopUp room={room} send={send} busy={busy} />}
+      <RoundStarter view={view} send={send} busy={busy} startLabel="Deal next round" />
+      {room.nextRoundAt && <p className="text-center text-xs text-muted">The next round starts automatically soon.</p>}
+    </motion.div>
+  );
+}
+
+function TopUp({ room, send, busy }: { room: ClientView['room']; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
+  return (
+    <button className="btn btn-ghost w-full" disabled={busy} onClick={() => send({ type: 'rebuy' })} data-testid="rebuy">
+      You're low on chips: top up to {room.settings.startingChips}
+    </button>
   );
 }
 
@@ -86,11 +133,11 @@ export function SideshowNote({ view }: { view: ClientView }) {
       <div className="mt-2 flex items-center justify-center gap-4">
         <div>
           <div className="flex gap-0.5">{last.yourCards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}</div>
-          <span className="text-[10px] text-muted">{last.yourLabel}</span>
+          <span className="text-[10px] text-muted">You: {last.yourLabel}</span>
         </div>
         <div>
           <div className="flex gap-0.5">{last.otherCards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}</div>
-          <span className="text-[10px] text-muted">{last.otherLabel}</span>
+          <span className="text-[10px] text-muted">{other}: {last.otherLabel}</span>
         </div>
       </div>
       <button className="mt-2 text-xs text-gold underline" onClick={() => setDismissed(key)}>Dismiss</button>

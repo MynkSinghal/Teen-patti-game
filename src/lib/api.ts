@@ -1,6 +1,7 @@
 'use client';
 import type { Command } from '@/lib/settings';
 import type { ClientView } from '@/server/view';
+import type { ChatMessage, RoundHistory } from '@/server/service';
 import { ensureToken } from './supabase-browser';
 
 export class ApiError extends Error {
@@ -36,5 +37,9 @@ export const api = {
   state: (code: string) => call<ClientView>(`/api/rooms/${code}/state`),
   command: (code: string, cmd: Command) => call<ClientView>(`/api/rooms/${code}/command`, { method: 'POST', body: JSON.stringify(cmd) }),
   tick: (code: string) => call<ClientView>(`/api/rooms/${code}/tick`, { method: 'POST' }),
+  chat: (code: string) => call<ChatMessage[]>(`/api/rooms/${code}/chat`),
+  sendChat: (code: string, body: string) =>
+    call<ChatMessage>(`/api/rooms/${code}/chat`, { method: 'POST', body: JSON.stringify({ body, idempotencyKey: `c-${Date.now()}-${Math.random().toString(36).slice(2, 10)}` }) }),
+  history: (code: string) => call<RoundHistory[]>(`/api/rooms/${code}/history`),
   heartbeat: (code: string) => call<{ ok: true }>(`/api/rooms/${code}/heartbeat`, { method: 'POST' }),
 };

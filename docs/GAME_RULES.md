@@ -71,3 +71,22 @@ Both hands are revealed to the table and compared.
 ## Chip accounting guarantees
 All commands run in a PostgreSQL transaction holding `SELECT … FOR UPDATE` on the room; each command carries an idempotency key
 (a replay is a no-op) and the client's game version (stale commands are rejected).
+
+## Dealer, variation and round flow
+* The **dealer button moves one seat every round** (skipping players who are out of chips or not ready). The host deals round 1.
+* With the default *Dealer's Choice* setting the **dealer picks the variation** (and its options) before dealing; the host can always step in
+  (the UI offers it after 30 s or when the dealer is disconnected). The host may instead choose "host picks" or a fixed variation in table settings.
+
+## Leaving
+* Between rounds you simply leave with your chips.
+* **Mid-round** you are packed immediately, the chips you already put in stay in the pot, and you leave with the rest. A pending sideshow involving you is cancelled
+  (as a decline if you were the one asked). If the host leaves, hosting passes to another player.
+
+## End of round
+* Pot, per-player contribution ("in 120") and the stake ladder (blind rate → table max) are visible all round; each seat shows its last action.
+* Ties and Hi-Lo splits produce **multiple winners**, each shown with their share.
+* Hands of everyone who did **not** pack are shown when the round ends (a show reveals both hands automatically). If everyone else packed, the winner
+  chooses whether to show their cards. Packed hands stay private. Anyone can see their own cards after the round.
+
+## Sideshow = back show
+The sideshow (compare with the previous seen player) is the "backshow". Requests have a 30 s answer timer; a timeout counts as a decline.

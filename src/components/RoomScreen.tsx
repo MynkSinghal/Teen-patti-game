@@ -1,13 +1,20 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Loader2, Menu as MenuIcon, RefreshCw, WifiOff, X } from 'lucide-react';
+import { Activity, Loader2, Menu as MenuIcon, RefreshCw, WifiOff } from 'lucide-react';
+import { useGameSfx } from '@/hooks/useGameSfx';
 import { useRoom } from '@/hooks/useRoom';
+import { unlockAudio } from '@/lib/sound';
 import { useRoomStore } from '@/store/room';
+import { useUI } from '@/store/ui';
 import { ActionBar } from './ActionBar';
+import { ChatBanner, ChatBubble, ChatSheet } from './Chat';
 import { Hand } from './Hand';
-import { Lobby, useInvite } from './Lobby';
+import { Lobby } from './Lobby';
 import { RoundEnd, SideshowNote } from './Overlays';
+import { FeedSheet, LeaveSheet, MenuSheet, PotSheet } from './Panels';
+import { RulesSheet } from './RulesSheet';
+import { StakeLadder } from './StakeLadder';
 import { Table } from './Table';
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -60,11 +67,36 @@ function ConnectionBanner({ retry }: { retry: () => void }) {
   );
 }
 
+function MyMoney({ view }: { view: NonNullable<ReturnType<typeof useRoomStore.getState>['view']> }) {
+  const g = view.room.game;
+  const mine = g?.players.find((p) => p.id === view.me.playerId);
+  const bal = view.room.players.find((p) => p.id === view.me.playerId)?.balance ?? 0;
+  if (!g || !mine) return null;
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-xl bg-panel-2 px-3 py-1.5 text-xs" data-testid="my-money">
+      <span className="text-muted">You've put in <b className="text-gold-soft tabular-nums" data-testid="my-committed">{mine.committed.toLocaleString()}</b></span>
+      <span className="text-muted">Pot <b className="text-paper tabular-nums">{g.pot.toLocaleString()}</b></span>
+      <span className="text-muted">Balance <b className="text-paper tabular-nums">{bal.toLocaleString()}</b></span>
+    </div>
+  );
+}
+
 export function RoomScreen({ code }: { code: string }) {
   const { join, send, retry } = useRoom(code);
   const { phase, error, view, busy } = useRoomStore();
-  const [menu, setMenu] = useState(false);
-  const invite = useInvite(code);
+  const open = useUI((s) => s.open);
+  useGameSfx(view);
+
+  useEffect(() => {
+    useUI.getState().init();
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   if (phase === 'loading') return <Centered><Loader2 className="animate-spin text-gold" /></Centered>;
   if (phase === 'needs_join') return <><Toast /><JoinForm code={code} onJoin={join} busy={busy} /></>;
@@ -83,14 +115,16 @@ export function RoomScreen({ code }: { code: string }) {
   if (!view) return <Centered><Loader2 className="animate-spin text-gold" /></Centered>;
 
   const { room, me } = view;
-  const playing = room.status === 'playing' || room.status === 'between';
   const g = room.game;
-  const showTable = playing && !!g;
+  const showTable = (room.status === 'playing' || room.status === 'between') && !!g;
+  const names = new Map(room.players.map((p) => [p.id, p.name]));
+  g?.players.forEach((p) => names.set(p.id, p.name));
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col">
       <ConnectionBanner retry={retry} />
       <Toast />
+      <ChatBanner />
       <header className="flex items-center justify-between px-4 py-3">
         <div>
           <p className="font-display text-lg leading-tight text-gold" data-testid="header-code">{room.name || 'Teen Patti'} <span className="tracking-widest text-paper/70">· {room.code}</span></p>
@@ -98,49 +132,48 @@ export function RoomScreen({ code }: { code: string }) {
             {room.status === 'lobby' ? 'Lobby' : room.status === 'between' ? `Round ${room.round} finished` : `Round ${room.round}`}
           </p>
         </div>
-        <button aria-label="Menu" className="grid h-10 w-10 place-items-center rounded-lg border border-line" onClick={() => setMenu(true)} data-testid="menu-btn"><MenuIcon size={18} /></button>
-      </header>
-
-      {menu && (
-        <div className="fixed inset-0 z-40 bg-black/60" onClick={() => setMenu(false)}>
-          <div className="ml-auto h-full w-64 space-y-2 bg-panel p-4" onClick={(e) => e.stopPropagation()}>
-            <button aria-label="Close menu" className="mb-2 ml-auto block" onClick={() => setMenu(false)}><X size={18} /></button>
-            <button className="btn btn-ghost w-full" onClick={invite.copy}>{invite.copied ? 'Copied!' : 'Copy invite link'}</button>
-            <Link className="btn btn-ghost flex w-full items-center justify-center" href="/rules" target="_blank">Game rules</Link>
-            {room.status !== 'playing' && (
-              <button className="btn btn-danger w-full" onClick={async () => { if (await send({ type: 'leave' })) location.href = '/'; }}>Leave room</button>
-            )}
-            {me.isHost && room.status !== 'lobby' && (
-              <button className="btn btn-danger w-full" onClick={() => confirm('Close this room for everyone?') && send({ type: 'close_room' })}>Close room</button>
-            )}
-          </div>
+        <div className="flex gap-2">
+          {showTable && (
+            <button aria-label="Table activity" className="grid h-10 w-10 place-items-center rounded-lg border border-line" onClick={() => open('feed')} data-testid="feed-btn"><Activity size={18} /></button>
+          )}
+          <button aria-label="Menu" className="grid h-10 w-10 place-items-center rounded-lg border border-line" onClick={() => open('menu')} data-testid="menu-btn"><MenuIcon size={18} /></button>
         </div>
-      )}
+      </header>
 
       {!showTable ? (
         <Lobby view={view} send={send} busy={busy} />
       ) : (
         <main className="flex flex-1 flex-col gap-2 px-3 safe-bottom">
           <Table view={view} />
+          {g && g.phase !== 'ended' && <StakeLadder game={g} names={names} />}
           <div className="mt-auto space-y-2">
             <SideshowNote view={view} />
             <Hand view={view} busy={busy} onSee={() => send({ type: 'see' })} />
+            <MyMoney view={view} />
             <ActionBar view={view} send={send} busy={busy} />
             <RoundEnd view={view} send={send} busy={busy} />
             {room.status === 'between' && me.isHost && <HostBetween view={view} send={send} busy={busy} />}
           </div>
         </main>
       )}
+
+      <ChatBubble />
+      <ChatSheet code={code} />
+      <MenuSheet view={view} code={code} send={send} />
+      <FeedSheet view={view} code={code} />
+      <PotSheet view={view} />
+      <RulesSheet />
+      <LeaveSheet view={view} send={send} />
     </div>
   );
 }
 
-function HostBetween({ view, send, busy }: { view: ReturnType<typeof useRoomStore.getState>['view'] & object; send: ReturnType<typeof useRoom>['send']; busy: boolean }) {
+function HostBetween({ view, send, busy }: { view: NonNullable<ReturnType<typeof useRoomStore.getState>['view']>; send: ReturnType<typeof useRoom>['send']; busy: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="pb-2 text-center">
       <button className="text-xs text-gold underline" onClick={() => setOpen(!open)} data-testid="between-settings">Edit table rules / remove players</button>
-      {open && <div className="mt-2 text-left"><Lobby view={view} send={send} busy={busy} /></div>}
+      {open && <div className="mt-2 text-left"><Lobby view={view} send={send} busy={busy} mode="between" /></div>}
     </div>
   );
 }

@@ -7,6 +7,7 @@ Free tiers are rate/usage limited and have no uptime guarantee; a Supabase free 
 2. Authentication → Sign In / Providers → enable **Anonymous Sign-Ins**.
 3. Apply the migrations in `supabase/migrations/` in order (SQL editor or `supabase db push`):
    * `0001_core_schema.sql` – tables, constraints, RLS (enabled, **no client policies**: tables are server-only).
+   * `0003_chat.sql` + `0004_chat_realtime.sql` – in-room chat table and its broadcast trigger.
    * `0002_realtime.sql` – private Realtime Broadcast: membership-checked `realtime.messages` policy and the trigger that broadcasts the public room state.
 4. Realtime → Settings: leave **“Allow public access”** off (channels are private).
 5. Dashboard → Connect → **Transaction pooler** string (port 6543) → this is `SUPABASE_DB_URL`.

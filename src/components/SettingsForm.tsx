@@ -33,11 +33,19 @@ export function SettingsForm({
       <Field label="Game variation">
         <select className="input" value={value.variation} onChange={(e) => onChange({ ...value, variation: e.target.value as RoomSettings['variation'], variationOptions: {} })} data-testid="variation-select">
           {VARIATION_LIST.map((v) => (
-            <option key={v.id} value={v.id}>{v.name}</option>
+            <option key={v.id} value={v.id}>{v.id === 'dealers_choice' ? "Dealer's Choice (pick every round)" : v.name}</option>
           ))}
         </select>
         <p className="mt-1 text-xs text-muted">{variation?.description}</p>
       </Field>
+      {value.variation === 'dealers_choice' && (
+        <Field label="Who picks the game each round">
+          <select className="input" value={value.variationChooser} onChange={(e) => set('variationChooser', e.target.value as never)} data-testid="chooser-select">
+            <option value="dealer">The dealer (rotates every round)</option>
+            <option value="host">The host</option>
+          </select>
+        </Field>
+      )}
       {variation?.options.map((o) =>
         o.type === 'select' ? (
           <Field key={o.key} label={o.label}>

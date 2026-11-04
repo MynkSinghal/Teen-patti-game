@@ -8,7 +8,7 @@ export interface VariationDoc {
 export const RANKING_EXAMPLES: { name: string; hand: string }[] = [
   { name: 'Trail', hand: 'KS KH KD' },
   { name: 'Pure sequence', hand: 'AS KS QS' },
-  { name: 'Sequence', hand: 'JS 10H 9D' },
+  { name: 'Sequence', hand: 'JS TH 9D' },
   { name: 'Color', hand: 'AH 9H 4H' },
   { name: 'Pair', hand: 'QS QD 7C' },
   { name: 'High card', hand: 'AS 9H 4D' },

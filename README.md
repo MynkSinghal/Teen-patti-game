@@ -19,6 +19,10 @@ Browser ◀── broadcast (public, card-free) ; GET /state → your private vi
 * Clients have no table privileges (RLS on, no policies); all writes go through the server with a direct DB connection.
 * Docs: `docs/GAME_RULES.md`, `docs/VARIATIONS.md`, `docs/DEPLOYMENT.md`.
 
+## Features
+Dealer-rotation with dealer-picked variations and an in-app rules sheet with card examples, stake ladder + per-seat last actions + activity feed and round history,
+multi-winner results with revealed hands, leave-anytime, in-room chat (bubble + banner), synthesized sound effects with mute/volume and haptics, four table themes.
+
 ## Scripts
 `npm run dev | build | start | typecheck | test | test:e2e`
 

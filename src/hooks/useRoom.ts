@@ -4,6 +4,9 @@ import { api, ApiError } from '@/lib/api';
 import { ensureToken, supabase } from '@/lib/supabase-browser';
 import type { Command } from '@/lib/settings';
 import { useRoomStore } from '@/store/room';
+import { useUI } from '@/store/ui';
+import { play } from '@/lib/sound';
+import type { ChatMessage } from '@/server/service';
 import type { ClientView } from '@/server/view';
 
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
@@ -80,6 +83,12 @@ export function useRoom(code: string) {
         s.getState().applyPublic(p.state);
         void refresh(); // fetch our private part (cards, legal actions)
       })
+      .on('broadcast', { event: 'chat' }, ({ payload }) => {
+        const m = payload as ChatMessage;
+        const mine = m.pid !== null && m.pid === useUI.getState().myPlayerId;
+        useUI.getState().addMessage(m);
+        if (!mine) play('chat');
+      })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           s.getState().set({ conn: 'online' });
@@ -99,6 +108,21 @@ export function useRoom(code: string) {
       channelRef.current = null;
     };
   }, [phase, subscribe]);
+
+  // Chat: load history once, and keep it fresh by polling only while realtime is down.
+  const myId = useRoomStore((x) => x.view?.me.playerId ?? null);
+  useEffect(() => {
+    useUI.getState().setMe(myId);
+  }, [myId]);
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    useUI.getState().resetChat();
+    api.chat(code).then((m) => useUI.getState().mergeMessages(m)).catch(() => undefined);
+    const poll = setInterval(() => {
+      if (s.getState().conn !== 'online') api.chat(code).then((m) => m.forEach((x) => useUI.getState().addMessage(x))).catch(() => undefined);
+    }, 4000);
+    return () => clearInterval(poll);
+  }, [phase, code, s]);
 
   // Heartbeat + visibility/online recovery + fallback polling while the realtime link is down.
   useEffect(() => {

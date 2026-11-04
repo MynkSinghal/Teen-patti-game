@@ -5,6 +5,7 @@ import { VARIATION_LIST } from '@/engine/variations';
 import type { RoomSettings } from '@/lib/settings';
 import type { CommandInput } from '@/hooks/useRoom';
 import type { ClientView } from '@/server/view';
+import { RoundStarter } from './RoundStarter';
 import { SettingsForm } from './SettingsForm';
 
 export function useInvite(code: string) {
@@ -27,12 +28,11 @@ export function useInvite(code: string) {
   return { url, copied, copy };
 }
 
-export function Lobby({ view, send, busy }: { view: ClientView; send: (c: CommandInput) => Promise<boolean>; busy: boolean }) {
+export function Lobby({ view, send, busy, mode = 'lobby' }: { view: ClientView; send: (c: CommandInput) => Promise<boolean>; busy: boolean; mode?: 'lobby' | 'between' }) {
   const { room, me } = view;
   const invite = useInvite(room.code);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<RoomSettings>(room.settings);
-  const [dealerPick, setDealerPick] = useState<string>('classic');
   const s = room.settings;
   const variation = VARIATION_LIST.find((v) => v.id === s.variation);
   const meP = room.players.find((p) => p.id === me.playerId);
@@ -41,6 +41,7 @@ export function Lobby({ view, send, busy }: { view: ClientView; send: (c: Comman
 
   return (
     <div className="mx-auto w-full max-w-md space-y-4 px-4 pb-8" data-testid="lobby">
+      {mode === 'lobby' && (
       <section className="rounded-2xl border border-line bg-panel p-4 text-center">
         <p className="label">Room code</p>
         <p className="font-display text-4xl tracking-[0.3em] text-gold" data-testid="room-code">{room.code}</p>
@@ -50,6 +51,7 @@ export function Lobby({ view, send, busy }: { view: ClientView; send: (c: Comman
           {invite.copied ? 'Copied!' : 'Copy invitation link'}
         </button>
       </section>
+      )}
 
       <section className="rounded-2xl border border-line bg-panel p-4">
         <div className="mb-2 flex items-center justify-between">
@@ -101,7 +103,7 @@ export function Lobby({ view, send, busy }: { view: ClientView; send: (c: Comman
           </div>
         ) : (
           <dl className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
-            <dt className="text-muted">Variation</dt><dd>{variation?.name}</dd>
+            <dt className="text-muted">Variation</dt><dd>{variation?.id === 'dealers_choice' ? (s.variationChooser === 'dealer' ? "Dealer's choice" : "Host's choice") : variation?.name}</dd>
             <dt className="text-muted">Boot</dt><dd>{s.boot}</dd>
             <dt className="text-muted">Starting chips</dt><dd>{s.startingChips}</dd>
             <dt className="text-muted">Turn timer</dt><dd>{s.turnSeconds}s</dd>
@@ -110,33 +112,17 @@ export function Lobby({ view, send, busy }: { view: ClientView; send: (c: Comman
         )}
       </section>
 
-      {me.isHost ? (
-        <div className="space-y-2">
-          {s.variation === 'dealers_choice' && (
-            <label className="block">
-              <span className="label">This round’s variation</span>
-              <select className="input" value={dealerPick} onChange={(e) => setDealerPick(e.target.value)} data-testid="dealer-pick">
-                {VARIATION_LIST.filter((v) => v.id !== 'dealers_choice').map((v) => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
-                ))}
-              </select>
-            </label>
-          )}
-          <button
-            className="btn btn-gold w-full"
-            disabled={busy || readyCount < needed}
-            onClick={() => send({ type: 'start_round', ...(s.variation === 'dealers_choice' ? { variation: dealerPick as never } : {}) })}
-            data-testid="start-round"
-          >
-            Start {room.round === 0 ? 'game' : 'next round'}
-          </button>
+      {mode === 'lobby' && (
+        <>
+          <RoundStarter view={view} send={send} busy={busy} canStart={readyCount >= needed} />
           {readyCount < needed && <p className="text-center text-xs text-muted">Waiting for at least {needed} ready players with enough chips for the boot.</p>}
-          <button className="btn btn-danger w-full" disabled={busy} onClick={() => confirm('Close this room for everyone?') && send({ type: 'close_room' })} data-testid="close-room">
-            Close room
-          </button>
-        </div>
-      ) : (
-        <p className="text-center text-sm text-muted">Waiting for the host to start…</p>
+          {me.isHost && (
+            <button className="btn btn-danger w-full" disabled={busy} onClick={() => confirm('Close this room for everyone?') && send({ type: 'close_room' })} data-testid="close-room">
+              Close room
+            </button>
+          )}
+          {!me.isHost && !room.nextDealerId && <p className="text-center text-sm text-muted">Waiting for the host to start…</p>}
+        </>
       )}
     </div>
   );
