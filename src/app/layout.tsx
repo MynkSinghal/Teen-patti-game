@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Private Teen Patti',
   description: 'A private Teen Patti table for you and your friends. Virtual chips only.',
+  appleWebApp: { capable: true, title: 'Teen Patti', statusBarStyle: 'black-translucent' },
 };
 export const viewport: Viewport = {
   width: 'device-width',

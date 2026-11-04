@@ -4,6 +4,7 @@ import { Crown, Eye, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import type { CommandInput } from '@/hooks/useRoom';
 import type { ClientView } from '@/server/view';
+import { jokerNote } from '@/lib/cards-ui';
 import { Avatar } from './Avatar';
 import { Confetti } from './Confetti';
 import { PlayingCard } from './PlayingCard';
@@ -78,7 +79,10 @@ export function RoundEnd({ view, send, busy }: { view: ClientView; send: (c: Com
                 <span className="flex gap-0.5">
                   {[0, 1, 2].map((i) => <PlayingCard key={i} card={rev?.cards[i] ?? (own ? own[i] : null)} faceDown={!rev && !own} size="sm" delay={i * 0.12} />)}
                 </span>
-                <span className="min-w-0 flex-1 text-right text-[11px] text-paper/80">{rev ? rev.label : own ? 'Your hand (private)' : 'Not shown'}</span>
+                <span className="min-w-0 flex-1 text-right text-[11px] text-paper/80">
+                  {rev ? rev.label : own ? 'Your hand (private)' : 'Not shown'}
+                  {rev && jokerNote(rev.jokerAs) && <span className="block text-gold-soft" data-testid="end-joker-note">{jokerNote(rev.jokerAs)}</span>}
+                </span>
               </li>
             );
           })}
@@ -133,11 +137,11 @@ export function SideshowNote({ view }: { view: ClientView }) {
       <div className="mt-2 flex items-center justify-center gap-4">
         <div>
           <div className="flex gap-0.5">{last.yourCards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}</div>
-          <span className="text-[10px] text-muted">You: {last.yourLabel}</span>
+          <span className="block text-[10px] text-muted">You: {last.yourLabel}{jokerNote(last.yourJokerAs) ? ` · ${jokerNote(last.yourJokerAs)}` : ''}</span>
         </div>
         <div>
           <div className="flex gap-0.5">{last.otherCards.map((c, i) => <PlayingCard key={i} card={c} size="sm" />)}</div>
-          <span className="text-[10px] text-muted">{other}: {last.otherLabel}</span>
+          <span className="block text-[10px] text-muted">{other}: {last.otherLabel}{jokerNote(last.otherJokerAs) ? ` · ${jokerNote(last.otherJokerAs)}` : ''}</span>
         </div>
       </div>
       <button className="mt-2 text-xs text-gold underline" onClick={() => setDismissed(key)}>Dismiss</button>

@@ -52,22 +52,29 @@ const ALL_CARDS: Card[] = SUITS.flatMap((suit) => RANKS.map((rank) => ({ rank, s
 
 /**
  * Best hand when `jokers` wildcards may stand in for any card.
- * `scoreFn` scores a concrete hand; the maximum over all substitutions is returned.
+ * Returns the best score and the substitute cards chosen for the free jokers (in order).
  */
-export function bestWithJokers(
+export function bestWithJokersDetailed(
   natural: Card[],
   jokers: number,
   scoreFn: (cards: Card[]) => HandScore,
-): HandScore {
-  if (jokers === 0) return scoreFn(natural);
-  if (jokers >= 3) return scoreFn([ace('S'), ace('H'), ace('D')]);
-  let best: HandScore | null = null;
-  const consider = (cards: Card[]) => {
-    const s = scoreFn(cards);
-    if (!best || compareScores(s, best) > 0) best = s;
+): { score: HandScore; subs: Card[] } {
+  if (jokers === 0) return { score: scoreFn(natural), subs: [] };
+  if (jokers >= 3) {
+    const subs = [ace('S'), ace('H'), ace('D')];
+    return { score: scoreFn(subs), subs };
+  }
+  let best: { score: HandScore; subs: Card[] } | null = null;
+  const consider = (subs: Card[]) => {
+    const s = scoreFn([...natural, ...subs]);
+    if (!best || compareScores(s, best.score) > 0) best = { score: s, subs };
   };
-  if (jokers === 1) for (const c of ALL_CARDS) consider([...natural, c]);
-  else for (const c1 of ALL_CARDS) for (const c2 of ALL_CARDS) consider([...natural, c1, c2]);
+  if (jokers === 1) for (const c of ALL_CARDS) consider([c]);
+  else for (const c1 of ALL_CARDS) for (const c2 of ALL_CARDS) consider([c1, c2]);
   return best!;
+}
+
+export function bestWithJokers(natural: Card[], jokers: number, scoreFn: (cards: Card[]) => HandScore): HandScore {
+  return bestWithJokersDetailed(natural, jokers, scoreFn).score;
 }
 const ace = (suit: 'S' | 'H' | 'D'): Card => ({ rank: 14, suit });

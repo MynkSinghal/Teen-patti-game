@@ -102,6 +102,12 @@ export const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('sideshow_request'), idempotencyKey: key, gameVersion: gv }),
   z.object({ type: z.literal('sideshow_respond'), idempotencyKey: key, gameVersion: gv, accept: z.boolean() }),
   z.object({ type: z.literal('reveal'), idempotencyKey: key }),
+  z.object({
+    type: z.literal('set_joker'),
+    idempotencyKey: key,
+    index: z.number().int().min(0).max(2),
+    as: z.object({ rank: z.number().int().min(2).max(14), suit: z.enum(['S', 'H', 'D', 'C']) }).nullable(),
+  }),
 ]);
 export type Command = z.infer<typeof commandSchema>;
 

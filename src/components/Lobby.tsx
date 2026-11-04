@@ -40,7 +40,7 @@ export function Lobby({ view, send, busy, mode = 'lobby' }: { view: ClientView; 
   const needed = room.round === 0 ? 3 : 2;
 
   return (
-    <div className="mx-auto w-full max-w-md space-y-4 px-4 pb-8" data-testid="lobby">
+    <div className="mx-auto w-full max-w-md space-y-4 px-4 pb-8 ls:max-w-4xl ls:columns-2 ls:gap-4 ls:space-y-0 [&>*]:ls:mb-4 [&>*]:ls:break-inside-avoid" data-testid="lobby">
       {mode === 'lobby' && (
       <section className="rounded-2xl border border-line bg-panel p-4 text-center">
         <p className="label">Room code</p>

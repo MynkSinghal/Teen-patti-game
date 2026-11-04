@@ -1,3 +1,4 @@
+import type { JokerAssign } from './base';
 import type { Card, ConcreteVariationId, HandScore, Payout, Rng, RulesConfig, VariationContext } from '../types';
 
 export interface OptionDef {
@@ -17,10 +18,10 @@ export interface Variation {
   /** Resolve per-round context (e.g. randomly drawn joker ranks). */
   prepare(opts: Record<string, unknown>, rules: RulesConfig, round: number, rng: Rng): VariationContext;
   /** Higher key wins. Used for show, sideshow and ordinary comparison. */
-  score(cards: Card[], ctx: VariationContext): HandScore;
+  score(cards: Card[], ctx: VariationContext, assign?: JokerAssign): HandScore;
   /** Split the pot between showdown entrants. Entries are in seat order. */
   settle(
-    entries: { playerId: string; cards: Card[] }[],
+    entries: { playerId: string; cards: Card[]; assign?: JokerAssign }[],
     pot: number,
     ctx: VariationContext,
     rules: RulesConfig,

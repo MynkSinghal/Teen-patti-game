@@ -10,6 +10,7 @@ import type { CommandInput } from '@/hooks/useRoom';
 import { useRoomStore } from '@/store/room';
 import { useUI, type Theme } from '@/store/ui';
 import type { ClientView } from '@/server/view';
+import { jokerNote } from '@/lib/cards-ui';
 import { Avatar } from './Avatar';
 import { Sheet } from './Sheet';
 import { useInvite } from './Lobby';
@@ -70,7 +71,7 @@ function ResultLine({ r, names }: { r: RoundHistory; names: Map<string, string> 
         {res?.payouts.map((p) => `${names.get(p.playerId) ?? 'Player'} won ${p.amount}${p.share && p.share !== 'all' ? ` (${p.share})` : ''}`).join(' · ') ?? 'No result'}
       </p>
       {res && res.reveal.length > 0 && (
-        <p className="mt-1 text-xs text-paper/70">{res.reveal.map((x) => `${names.get(x.playerId) ?? '?'}: ${x.label}`).join(' · ')}</p>
+        <p className="mt-1 text-xs text-paper/70">{res.reveal.map((x) => `${names.get(x.playerId) ?? '?'}: ${x.label}${jokerNote(x.jokerAs) ? ` (${jokerNote(x.jokerAs)})` : ''}`).join(' · ')}</p>
       )}
       <p className="mt-0.5 text-[11px] text-muted">Pot {res?.pot} · {res?.reason === 'show' ? 'decided by a show' : 'everyone else packed'}</p>
     </li>

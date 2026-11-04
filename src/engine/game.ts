@@ -13,6 +13,7 @@ import type {
 } from './types';
 import { EngineError } from './types';
 import { getVariation } from './variations';
+import { jokerIndexes, resolveHand } from './variations/base';
 
 const MAX_LOG = 40;
 
@@ -79,6 +80,7 @@ export function startRound(input: StartRoundInput): StepOutput {
     pending: null,
     hands: Object.fromEntries(players.map((p, i) => [p.id, hands[i]!])),
     notes: {},
+    assign: {},
     result: null,
     log: [],
     seq: 0,
@@ -210,6 +212,19 @@ export function applyAction(prev: EngineState, playerId: string, action: Action,
       }
       return { state, events };
     }
+    case 'set_joker': {
+      if (!me.seen) throw new EngineError('INVALID_ACTION', 'Look at your cards first.');
+      const idxs = jokerIndexes(state.hands[playerId]!, state.ctx);
+      if (!idxs.includes(action.index)) throw new EngineError('INVALID_ACTION', 'That card is not a joker.');
+      const a = action.as;
+      if (a !== null && (!Number.isInteger(a.rank) || a.rank < 2 || a.rank > 14 || !['S', 'H', 'D', 'C'].includes(a.suit))) {
+        throw new EngineError('INVALID_ACTION', 'Pick a valid card for the joker.');
+      }
+      const mine = (state.assign[playerId] ??= {});
+      if (a === null) delete mine[String(action.index)];
+      else mine[String(action.index)] = a;
+      return { state, events };
+    }
     case 'sideshow_respond': {
       const pend = state.pending;
       if (state.phase !== 'sideshow' || !pend) throw new EngineError('NO_PENDING_SIDESHOW', 'There is no sideshow to answer.');
@@ -280,8 +295,10 @@ function resolveSideshow(state: EngineState, events: PublicEvent[], accept: bool
   }
   push(state, events, { type: 'sideshow_accepted', playerId: res.id, otherId: req.id });
   const v = getVariation(state.variation);
-  const sReq = v.score(state.hands[req.id]!, state.ctx);
-  const sRes = v.score(state.hands[res.id]!, state.ctx);
+  const sReq = v.score(state.hands[req.id]!, state.ctx, state.assign[req.id]);
+  const sRes = v.score(state.hands[res.id]!, state.ctx, state.assign[res.id]);
+  const rReq = resolveHand(state.hands[req.id]!, state.ctx, state.assign[req.id]);
+  const rRes = resolveHand(state.hands[res.id]!, state.ctx, state.assign[res.id]);
   let cmp = 0;
   for (let i = 0; i < Math.max(sReq.key.length, sRes.key.length) && cmp === 0; i++) cmp = Math.sign((sReq.key[i] ?? 0) - (sRes.key[i] ?? 0));
   let loser: EnginePlayer | null = null;
@@ -296,6 +313,8 @@ function resolveSideshow(state: EngineState, events: PublicEvent[], accept: bool
       otherCards: state.hands[other.id]!,
       yourLabel: mine.label,
       otherLabel: theirs.label,
+      yourJokerAs: (me.id === req.id ? rReq : rRes).jokerAs,
+      otherJokerAs: (me.id === req.id ? rRes : rReq).jokerAs,
       outcome: loser === null ? 'tied' : loser.id === me.id ? 'lost' : 'won',
       role,
     });
@@ -314,14 +333,17 @@ function resolveSideshow(state: EngineState, events: PublicEvent[], accept: bool
 
 function doShowdown(state: EngineState, events: PublicEvent[], entrants: EnginePlayer[], challengerId?: string) {
   const v = getVariation(state.variation);
-  const entries = entrants.map((p) => ({ playerId: p.id, cards: state.hands[p.id]! }));
+  const entries = entrants.map((p) => ({ playerId: p.id, cards: state.hands[p.id]!, assign: state.assign[p.id] }));
   const payouts: Payout[] = v.settle(entries, state.pot, state.ctx, state.rules, challengerId);
   endRound(state, events, {
     reason: 'show',
     pot: state.pot,
     payouts,
     challengerId,
-    reveal: entries.map((e) => ({ playerId: e.playerId, cards: e.cards, label: v.score(e.cards, state.ctx).label })),
+    reveal: entries.map((e) => {
+      const rh = resolveHand(e.cards, state.ctx, e.assign);
+      return { playerId: e.playerId, cards: e.cards, label: v.score(e.cards, state.ctx, e.assign).label, jokerAs: rh.jokerAs };
+    }),
   });
 }
 
@@ -428,7 +450,8 @@ export function privateView(state: EngineState, playerId: string) {
     seen: !!me?.seen,
     folded: !!me?.folded,
     cards: me && canSee ? state.hands[playerId]! : null,
-    handLabel: me && canSee ? v.score(state.hands[playerId]!, state.ctx).label : null,
+    handLabel: me && canSee ? v.score(state.hands[playerId]!, state.ctx, state.assign[playerId]).label : null,
+    jokers: me && canSee ? jokerView(state, playerId) : null,
     legal: legalActions(state, playerId),
     notes: state.notes[playerId] ?? [],
   };
@@ -446,7 +469,8 @@ function revealHand(state: EngineState, playerId: string, events: PublicEvent[])
   const cards = state.hands[playerId];
   if (!cards) throw new EngineError('NOT_IN_ROUND', 'You are not in this round.');
   const v = getVariation(state.variation);
-  r.reveal.push({ playerId, cards, label: v.score(cards, state.ctx).label });
+  const rh = resolveHand(cards, state.ctx, state.assign[playerId]);
+  r.reveal.push({ playerId, cards, label: v.score(cards, state.ctx, state.assign[playerId]).label, jokerAs: rh.jokerAs });
   push(state, events, { type: 'reveal', playerId });
   return { state, events };
 }
@@ -479,4 +503,12 @@ export function leaveRound(prev: EngineState, playerId: string, now: number): St
     assignTurn(state, nextActiveAfter(state, playerId).id, now, events);
   }
   return { state, events };
+}
+
+function jokerView(state: EngineState, playerId: string) {
+  const cards = state.hands[playerId]!;
+  const idx = jokerIndexes(cards, state.ctx);
+  if (!idx.length) return null;
+  const rh = resolveHand(cards, state.ctx, state.assign[playerId]);
+  return { indexes: idx, as: rh.jokerAs, auto: rh.auto };
 }

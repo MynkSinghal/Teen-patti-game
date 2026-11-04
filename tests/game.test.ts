@@ -408,3 +408,83 @@ describe('end of round reveal', () => {
     expect(total(s)).toBe(3000);
   });
 });
+
+describe('player-controlled jokers', () => {
+  const ak = (hands: string[]) => mkRound(3, { variation: 'ak47', hands });
+  it('only seen players can set, only on joker cards, validated', () => {
+    let s = ak(['AS 9H 9D', '2S 3H 5D', '6S 8H JD']);
+    expect(code(() => act(s, 'p0', { type: 'set_joker', index: 0, as: { rank: 9, suit: 'S' } }))).toBe('INVALID_ACTION'); // not seen yet
+    s = act(s, 'p0', { type: 'see' });
+    expect(code(() => act(s, 'p0', { type: 'set_joker', index: 1, as: { rank: 9, suit: 'S' } }))).toBe('INVALID_ACTION'); // 9 is natural
+    expect(code(() => act(s, 'p0', { type: 'set_joker', index: 0, as: { rank: 99, suit: 'S' } }))).toBe('INVALID_ACTION');
+    expect(code(() => act(s, 'p1', { type: 'set_joker', index: 0, as: null }))).toBe('INVALID_ACTION'); // p1 not seen
+    s = act(s, 'p0', { type: 'set_joker', index: 0, as: { rank: 9, suit: 'S' } });
+    expect(s.assign.p0).toEqual({ '0': { rank: 9, suit: 'S' } });
+    expect(code(() => act(mkRound(3), 'p0', { type: 'set_joker', index: 0, as: null }))).toBe('INVALID_ACTION'); // classic: no jokers
+  });
+  it('auto picks the best value; the player may override it and the label follows', () => {
+    let s = ak(['AS 9H 9D', '2S 3H 5D', '6S 8H JD']);
+    s = act(s, 'p0', { type: 'see' });
+    let pv = privateView(s, 'p0');
+    expect(pv.handLabel).toMatch(/Trail of 9s/);
+    expect(pv.jokers).toMatchObject({ indexes: [0], auto: [true, false, false] });
+    s = act(s, 'p0', { type: 'set_joker', index: 0, as: { rank: 2, suit: 'C' } });
+    pv = privateView(s, 'p0');
+    expect(pv.handLabel).toMatch(/Pair of 9s/);
+    expect(pv.jokers!.as[0]).toEqual({ rank: 2, suit: 'C' });
+    expect(pv.jokers!.auto[0]).toBe(false);
+    s = act(s, 'p0', { type: 'set_joker', index: 0, as: null }); // back to auto
+    expect(privateView(s, 'p0').handLabel).toMatch(/Trail of 9s/);
+  });
+  it('lowest-card joker: index follows the lowest card', () => {
+    let s = mkRound(3, { variation: 'joker', variationOptions: { jokerMode: 'lowest' }, hands: ['KS 2H KD', '4S 6H JD', '7S 8H 9D'] });
+    s = act(s, 'p0', { type: 'see' });
+    expect(privateView(s, 'p0').jokers!.indexes).toEqual([1]);
+    expect(privateView(s, 'p0').handLabel).toMatch(/Trail of Kings/);
+  });
+  it('show honours the chosen values and reveals who set what; others cannot see it before', () => {
+    let s = ak(['AS 9H 9D', '5S 9C 9H', '2S 3H 5D']);
+    s = act(s, 'p0', { type: 'pack' }); // wait: p0 is first to act and has a strong hand; make p2 pack instead
+    void s;
+    s = ak(['2S 3H 5D', 'AS 9H 9D', '5S 9C 9H']);
+    s = act(s, 'p0', { type: 'pack' });
+    s = act(s, 'p1', { type: 'see' });
+    s = act(s, 'p1', { type: 'set_joker', index: 0, as: { rank: 2, suit: 'C' } }); // deliberately weak: pair of 9s
+    expect(JSON.stringify(publicView(s))).not.toContain('"assign"');
+    expect(privateView(s, 'p2').jokers).toBeNull();
+    s = act(s, 'p1', { type: 'show' });
+    const r = s.result!;
+    const rev = r.reveal.find((x) => x.playerId === 'p1')!;
+    expect(rev.jokerAs![0]).toEqual({ rank: 2, suit: 'C' });
+    expect(rev.label).toMatch(/Pair of 9s/);
+    expect(r.payouts[0]!.playerId).toBe('p2'); // p2 (pair of 9s, 5 kicker... ) vs p1 (pair of 9s, 3? ) sanity: higher kicker wins
+  });
+  it('auto jokers at a show are reported with their best value', () => {
+    let s = ak(['2S 3H 5D', 'AS 9H 9D', '4S 6H JD']);
+    s = act(s, 'p0', { type: 'pack' });
+    s = act(s, 'p1', { type: 'show' });
+    const rev = s.result!.reveal.find((x) => x.playerId === 'p1')!;
+    expect(rev.jokerAs![0]!.rank).toBe(9);
+    expect(rev.jokerAs![1]).toBeNull();
+  });
+  it('sideshow shows both players how the jokers were used, privately', () => {
+    let s = ak(['AS 9H 9D', '7S 9C 9H', '2S 3H 5D']);
+    s = act(s, 'p0', { type: 'see' });
+    s = act(s, 'p0', { type: 'bet' });
+    s = act(s, 'p1', { type: 'see' });
+    s = act(s, 'p1', { type: 'sideshow_request' });
+    s = act(s, 'p0', { type: 'sideshow_respond', accept: true });
+    const n = privateView(s, 'p1').notes[0]!;
+    expect(n.yourJokerAs![0]).toMatchObject({ rank: 9 });
+    expect(n.otherJokerAs![0]).toMatchObject({ rank: 9 });
+    expect(privateView(s, 'p2').notes).toEqual([]);
+  });
+  it('cannot change jokers after the round ends or after packing', () => {
+    let s = ak(['AS 9H 9D', '2S 3H 5D', '4S 6H JD']);
+    s = act(s, 'p0', { type: 'see' });
+    s = act(s, 'p0', { type: 'pack' });
+    expect(code(() => act(s, 'p0', { type: 'set_joker', index: 0, as: null }))).toBe('ALREADY_FOLDED');
+    s = act(s, 'p1', { type: 'pack' });
+    expect(code(() => act(s, 'p2', { type: 'set_joker', index: 0, as: null }))).toBe('ROUND_ENDED');
+  });
+});

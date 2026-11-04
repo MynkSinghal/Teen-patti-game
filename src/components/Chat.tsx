@@ -18,7 +18,7 @@ export function ChatBubble() {
       aria-label={unread ? `Open chat, ${unread} unread` : 'Open chat'}
       onClick={() => open('chat')}
       whileTap={{ scale: 0.92 }}
-      className="fixed right-0 top-[30%] z-30 grid h-12 w-10 place-items-center rounded-l-2xl border border-r-0 border-gold/50 bg-panel/90 pl-1 text-gold shadow-[0_6px_24px_rgba(0,0,0,.5)] backdrop-blur"
+      className="fixed right-0 top-[30%] z-30 grid h-12 w-10 place-items-center rounded-l-2xl border border-r-0 border-gold/50 bg-panel/90 pl-1 text-gold shadow-[0_6px_24px_rgba(0,0,0,.5)] backdrop-blur ls:left-0 ls:right-auto ls:top-1/2 ls:rounded-l-none ls:rounded-r-2xl ls:border-l-0 ls:border-r ls:pl-0 ls:pr-1"
       data-testid="chat-bubble"
     >
       <MessageCircle size={20} />
@@ -29,7 +29,7 @@ export function ChatBubble() {
             initial={{ scale: 0.4 }}
             animate={{ scale: 1 }}
             exit={{ scale: 0 }}
-            className="absolute -left-2 -top-1.5 grid min-h-5 min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-bold text-white"
+            className="absolute -left-2 -top-1.5 grid ls:-right-2 ls:left-auto min-h-5 min-w-5 place-items-center rounded-full bg-danger px-1 text-[11px] font-bold text-white"
             data-testid="chat-unread"
           >
             {unread > 9 ? '9+' : unread}

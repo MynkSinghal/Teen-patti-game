@@ -4,7 +4,7 @@ import { loadSoundPrefs, setMuted as persistMuted, setVolume as persistVolume } 
 import type { ChatMessage } from '@/server/service';
 
 export type Theme = 'classic' | 'midnight' | 'burgundy' | 'noir';
-export type Sheet = null | 'menu' | 'rules' | 'feed' | 'pot' | 'chat' | 'leave';
+export type Sheet = null | 'menu' | 'rules' | 'feed' | 'pot' | 'chat' | 'leave' | 'joker';
 
 interface UIStore {
   muted: boolean;
@@ -12,6 +12,7 @@ interface UIStore {
   theme: Theme;
   sheet: Sheet;
   rulesFor: string | null;
+  jokerIndex: number | null;
   messages: ChatMessage[];
   unread: number;
   banner: ChatMessage | null;
@@ -21,6 +22,7 @@ interface UIStore {
   setVolume: (v: number) => void;
   setTheme: (t: Theme) => void;
   open: (s: Sheet, rulesFor?: string | null) => void;
+  openJoker: (index: number) => void;
   close: () => void;
   setMe: (id: string | null) => void;
   mergeMessages: (m: ChatMessage[]) => void;
@@ -37,6 +39,7 @@ export const useUI = create<UIStore>((set, get) => ({
   theme: 'classic',
   sheet: null,
   rulesFor: null,
+  jokerIndex: null,
   messages: [],
   unread: 0,
   banner: null,
@@ -59,7 +62,8 @@ export const useUI = create<UIStore>((set, get) => ({
     set({ theme });
   },
   open: (sheet, rulesFor = null) => set({ sheet, rulesFor, ...(sheet === 'chat' ? { unread: 0, banner: null } : {}) }),
-  close: () => set({ sheet: null, rulesFor: null }),
+  openJoker: (jokerIndex) => set({ sheet: 'joker', jokerIndex }),
+  close: () => set({ sheet: null, rulesFor: null, jokerIndex: null }),
   setMe: (myPlayerId) => set({ myPlayerId }),
   mergeMessages: (incoming) => {
     const byId = new Map(get().messages.map((m) => [m.id, m]));

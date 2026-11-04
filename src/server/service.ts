@@ -426,7 +426,7 @@ export async function heartbeat(userId: string, code: string, sql: Sql = getSql(
 /* Commands                                                            */
 /* ------------------------------------------------------------------ */
 
-const GAME_COMMANDS = new Set(['see', 'bet', 'pack', 'show', 'sideshow_request', 'sideshow_respond', 'reveal']);
+const GAME_COMMANDS = new Set(['see', 'bet', 'pack', 'show', 'sideshow_request', 'sideshow_respond', 'reveal', 'set_joker']);
 
 export async function runCommand(userId: string, code: string, cmd: Command, sql: Sql = getSql()): Promise<ClientView> {
   // Process overdue deadlines first in their own transaction so they persist even if this command is rejected.
@@ -480,6 +480,7 @@ async function runGameCommand(ctx: Ctx, cmd: Command) {
   let action: Action;
   switch (cmd.type) {
     case 'see': action = { type: 'see' }; break;
+    case 'set_joker': action = { type: 'set_joker', index: cmd.index, as: cmd.as }; break;
     case 'bet': action = { type: 'bet', raise: cmd.raise }; break;
     case 'pack': action = { type: 'pack' }; break;
     case 'show': action = { type: 'show' }; break;
@@ -492,7 +493,7 @@ async function runGameCommand(ctx: Ctx, cmd: Command) {
     ctx.engine = r.state;
     ctx.events.push(...r.events);
     ctx.engineChanged = true;
-    ctx.bumpGame = cmd.type !== 'see';
+    ctx.bumpGame = cmd.type !== 'see' && cmd.type !== 'set_joker';
   } catch (e) {
     if (e instanceof EngineError) throw new AppError(e.code, e.message);
     throw e;

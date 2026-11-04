@@ -83,7 +83,8 @@ export interface RoundResult {
   pot: number;
   payouts: Payout[];
   /** Hands that were legitimately revealed by a show. */
-  reveal: { playerId: string; cards: Card[]; label: string }[];
+  /** jokerAs[i] = what the joker at card i stood for (null for natural cards). */
+  reveal: { playerId: string; cards: Card[]; label: string; jokerAs?: (Card | null)[] }[];
   challengerId?: string;
 }
 
@@ -120,6 +121,8 @@ export interface PrivateNote {
   otherCards: Card[];
   yourLabel: string;
   otherLabel: string;
+  yourJokerAs?: (Card | null)[];
+  otherJokerAs?: (Card | null)[];
   outcome: 'won' | 'lost' | 'tied';
   role: 'requester' | 'responder';
 }
@@ -139,6 +142,8 @@ export interface EngineState {
   pending: PendingSideshow | null;
   hands: Record<string, Card[]>;
   notes: Record<string, PrivateNote[]>;
+  /** Player-chosen joker values: playerId -> card index -> substitute card. Private until revealed. */
+  assign: Record<string, Record<string, Card>>;
   result: RoundResult | null;
   log: PublicEvent[];
   seq: number;
@@ -151,7 +156,8 @@ export type Action =
   | { type: 'show' }
   | { type: 'sideshow_request' }
   | { type: 'sideshow_respond'; accept: boolean }
-  | { type: 'reveal' };
+  | { type: 'reveal' }
+  | { type: 'set_joker'; index: number; as: Card | null };
 
 export class EngineError extends Error {
   constructor(

@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Activity, Loader2, Menu as MenuIcon, RefreshCw, WifiOff } from 'lucide-react';
+import { Activity, Loader2, Menu as MenuIcon, RefreshCw, RotateCw, WifiOff, X } from 'lucide-react';
 import { useGameSfx } from '@/hooks/useGameSfx';
 import { useRoom } from '@/hooks/useRoom';
 import { unlockAudio } from '@/lib/sound';
@@ -10,6 +10,7 @@ import { useUI } from '@/store/ui';
 import { ActionBar } from './ActionBar';
 import { ChatBanner, ChatBubble, ChatSheet } from './Chat';
 import { Hand } from './Hand';
+import { JokerSheet } from './JokerSheet';
 import { Lobby } from './Lobby';
 import { RoundEnd, SideshowNote } from './Overlays';
 import { FeedSheet, LeaveSheet, MenuSheet, PotSheet } from './Panels';
@@ -63,6 +64,35 @@ function ConnectionBanner({ retry }: { retry: () => void }) {
     <div className="flex items-center justify-center gap-2 bg-[#3a2c12] px-3 py-1.5 text-xs text-gold-soft" role="status" data-testid="conn-banner">
       <WifiOff size={13} /> {conn === 'offline' ? 'You appear to be offline.' : 'Reconnecting…'}
       <button className="underline" onClick={retry}><RefreshCw size={12} className="mr-1 inline" />Retry now</button>
+    </div>
+  );
+}
+
+/** Phones play best sideways. Web pages can't force rotation, so nudge, and lock landscape where the browser allows it. */
+function RotateHint({ active }: { active: boolean }) {
+  const [portrait, setPortrait] = useState(false);
+  const [dismissed, setDismissed] = useState(true);
+  useEffect(() => {
+    try { setDismissed(sessionStorage.getItem('tp_rotate_dismissed') === '1'); } catch { setDismissed(false); }
+    const mq = window.matchMedia('(orientation: portrait) and (max-width: 700px)');
+    const on = () => setPortrait(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  if (!active || !portrait || dismissed) return null;
+  const goLandscape = async () => {
+    try {
+      await document.documentElement.requestFullscreen?.();
+      await (screen.orientation as unknown as { lock?: (o: string) => Promise<void> }).lock?.('landscape');
+    } catch { /* iOS Safari can't lock; the user can rotate manually */ }
+  };
+  return (
+    <div className="fixed inset-x-3 bottom-3 z-30 mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-gold/40 bg-panel/95 px-3 py-2 text-xs shadow-xl backdrop-blur" role="status" data-testid="rotate-hint">
+      <RotateCw size={18} className="shrink-0 text-gold" />
+      <span className="flex-1">Turn your phone sideways for the best table view.</span>
+      <button className="rounded-full bg-gold px-3 py-1 font-bold text-ink" onClick={goLandscape}>Go landscape</button>
+      <button aria-label="Dismiss" onClick={() => { setDismissed(true); try { sessionStorage.setItem('tp_rotate_dismissed', '1'); } catch { /* ignore */ } }}><X size={14} /></button>
     </div>
   );
 }
@@ -121,11 +151,11 @@ export function RoomScreen({ code }: { code: string }) {
   g?.players.forEach((p) => names.set(p.id, p.name));
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col">
+    <div className={`mx-auto flex min-h-dvh max-w-md flex-col ls:max-w-none ${showTable ? 'ls:h-dvh ls:max-h-dvh ls:min-h-0 ls:overflow-hidden' : ''}`}>
       <ConnectionBanner retry={retry} />
       <Toast />
       <ChatBanner />
-      <header className="flex items-center justify-between px-4 py-3">
+      <header className="flex items-center justify-between px-4 py-3 ls:h-11 ls:shrink-0 ls:py-0">
         <div>
           <p className="font-display text-lg leading-tight text-gold" data-testid="header-code">{room.name || 'Teen Patti'} <span className="tracking-widest text-paper/70">· {room.code}</span></p>
           <p className="text-[11px] uppercase tracking-wider text-muted">
@@ -143,10 +173,12 @@ export function RoomScreen({ code }: { code: string }) {
       {!showTable ? (
         <Lobby view={view} send={send} busy={busy} />
       ) : (
-        <main className="flex flex-1 flex-col gap-2 px-3 safe-bottom">
-          <Table view={view} />
-          {g && g.phase !== 'ended' && <StakeLadder game={g} names={names} />}
-          <div className="mt-auto space-y-2">
+        <main className="flex flex-1 flex-col gap-2 px-3 safe-bottom ls:grid ls:min-h-0 ls:flex-1 ls:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] ls:gap-3 ls:overflow-hidden ls:px-4 ls:pb-2" data-testid="game-main">
+          <div className="ls:h-full ls:min-h-0">
+            <Table view={view} />
+          </div>
+          <div className="mt-auto space-y-2 ls:mt-0 ls:min-h-0 ls:overflow-y-auto ls:pr-1" data-testid="side-panel">
+            {g && g.phase !== 'ended' && <StakeLadder game={g} names={names} />}
             <SideshowNote view={view} />
             <Hand view={view} busy={busy} onSee={() => send({ type: 'see' })} />
             <MyMoney view={view} />
@@ -157,6 +189,7 @@ export function RoomScreen({ code }: { code: string }) {
         </main>
       )}
 
+      <RotateHint active={showTable} />
       <ChatBubble />
       <ChatSheet code={code} />
       <MenuSheet view={view} code={code} send={send} />
@@ -164,6 +197,7 @@ export function RoomScreen({ code }: { code: string }) {
       <PotSheet view={view} />
       <RulesSheet />
       <LeaveSheet view={view} send={send} />
+      <JokerSheet view={view} send={send} busy={busy} />
     </div>
   );
 }

@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 
+/* phone held sideways (short viewport) */
+@custom-variant ls (@media (orientation: landscape) and (max-height: 620px));
+
 @theme {
   --color-ink: #0a0d0c;
   --color-panel: #121816;

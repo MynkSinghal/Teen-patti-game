@@ -39,7 +39,7 @@ export function StakeLadder({ game, names }: { game: Game; names: Map<string, st
           );
         })}
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-paper/70">
+      <div className="mt-1 flex justify-between text-[11px] text-paper/70 ls:hidden">
         <span>Blind pays <b className="text-paper">{game.blindCost}</b></span>
         <span>Seen pays <b className="text-paper">{game.seenCost}</b></span>
       </div>

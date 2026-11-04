@@ -14,9 +14,9 @@ const classic: Variation = {
   description: 'Standard rankings: Trail > Pure Sequence > Sequence > Color > Pair > High Card.',
   options: [],
   prepare: (_o, rules) => baseContext('classic', 'Classic Teen Patti', rules),
-  score: (cards, ctx) => classicScore(cards, ctx),
+  score: (cards, ctx, assign) => classicScore(cards, ctx, assign),
   settle: (entries, pot, ctx, rules, challengerId) =>
-    settleWinnerTakesAll(entries, pot, (c) => classicScore(c, ctx), rules, challengerId),
+    settleWinnerTakesAll(entries, pot, (c, a) => classicScore(c, ctx, a), rules, challengerId),
 };
 
 const muflis: Variation = {
@@ -36,9 +36,9 @@ const ak47: Variation = {
   description: 'Every Ace, King, Four and Seven is a joker and may stand in for any card.',
   options: [],
   prepare: (_o, rules) => ({ ...baseContext('ak47', 'AK47', rules), jokerRanks: [14, 13, 4, 7] }),
-  score: (cards, ctx) => classicScore(cards, ctx),
+  score: (cards, ctx, assign) => classicScore(cards, ctx, assign),
   settle: (entries, pot, ctx, rules, challengerId) =>
-    settleWinnerTakesAll(entries, pot, (c) => classicScore(c, ctx), rules, challengerId),
+    settleWinnerTakesAll(entries, pot, (c, a) => classicScore(c, ctx, a), rules, challengerId),
 };
 
 const rankChoices = RANKS.map((r) => ({ value: String(r), label: ({ 11: 'J', 12: 'Q', 13: 'K', 14: 'A' } as Record<number, string>)[r] ?? String(r) }));
@@ -87,9 +87,9 @@ const joker: Variation = {
     const ranks = host.length ? [...new Set(host)].slice(0, want) : drawRanks(want, rng);
     return { ...ctx, name: mode === 'double' ? 'Double Joker' : 'Single Joker', jokerRanks: ranks };
   },
-  score: (cards, ctx) => classicScore(cards, ctx),
+  score: (cards, ctx, assign) => classicScore(cards, ctx, assign),
   settle: (entries, pot, ctx, rules, challengerId) =>
-    settleWinnerTakesAll(entries, pot, (c) => classicScore(c, ctx), rules, challengerId),
+    settleWinnerTakesAll(entries, pot, (c, a) => classicScore(c, ctx, a), rules, challengerId),
 };
 
 /* ---------- 999 ---------- */
