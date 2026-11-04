@@ -1,47 +1,35 @@
 'use client';
-import { motion } from 'motion/react';
+import { TrendingUp } from 'lucide-react';
 import type { PublicRoomState } from '@/server/view';
 
 type Game = NonNullable<PublicRoomState['game']>;
 
-/** Shows every stake level from the boot to the table max, the current one, and who raised last. */
+/** One slim line: current stake, what blind / seen players pay, who raised last, and how close the cap is. */
 export function StakeLadder({ game, names }: { game: Game; names: Map<string, string> }) {
   const { minStake, maxStake, raiseFactor } = game.rules;
-  const steps: number[] = [];
-  for (let s = minStake; s <= maxStake && steps.length < 12; s = Math.ceil(s * raiseFactor)) {
-    steps.push(s);
-    if (raiseFactor <= 1) break;
-  }
+  const levels = raiseFactor > 1 ? Math.max(1, Math.round(Math.log(maxStake / minStake) / Math.log(raiseFactor))) : 1;
+  const at = raiseFactor > 1 ? Math.min(levels, Math.max(0, Math.round(Math.log(game.stake / minStake) / Math.log(raiseFactor)))) : 0;
   const lastRaise = [...game.log].reverse().find((e) => e.type === 'raise');
+  const who = lastRaise?.playerId ? names.get(lastRaise.playerId) : null;
   const atMax = game.stake >= maxStake;
   return (
-    <div className="rounded-xl border border-line bg-panel/80 px-3 py-1.5 ls:py-1" data-testid="stake-ladder">
-      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-muted">
-        <span>Stake</span>
-        <span>
-          {lastRaise?.playerId ? `Last raise: ${names.get(lastRaise.playerId) ?? '?'} → ${lastRaise.stake}` : 'No raises yet'}
-          {atMax ? ' · max' : ''}
+    <div className="rounded-lg border border-line bg-panel/80 px-2.5 py-1.5" data-testid="stake-ladder" aria-label={`Stake ${game.stake}, blind pays ${game.blindCost}, seen pays ${game.seenCost}${atMax ? ', at the table maximum' : ''}`}>
+      <div className="flex items-center gap-2 text-[11px] leading-none">
+        <span className="flex items-center gap-1 text-muted"><TrendingUp size={12} className="text-gold" />Stake</span>
+        <b className="font-display text-base leading-none text-gold-soft tabular-nums" data-testid="stake-value">{game.stake}</b>
+        <span className="ml-auto flex gap-2 text-paper/80">
+          <span>Blind <b className="text-paper tabular-nums">{game.blindCost}</b></span>
+          <span>Seen <b className="text-paper tabular-nums">{game.seenCost}</b></span>
         </span>
       </div>
-      <div className="mt-1 flex items-end gap-1">
-        {steps.map((s, i) => {
-          const done = s <= game.stake;
-          const current = s === game.stake;
-          return (
-            <div key={s} className="flex flex-1 flex-col items-center gap-1">
-              <motion.div
-                layout
-                animate={{ height: 5 + i * 2, opacity: done ? 1 : 0.28 }}
-                className={`w-full rounded-sm ${current ? 'bg-gold shadow-[0_0_10px_rgba(201,162,75,.8)]' : done ? 'bg-gold/60' : 'bg-line'}`}
-              />
-              <span className={`text-[10px] tabular-nums ${current ? 'font-bold text-gold-soft' : 'text-muted'}`}>{s}</span>
-            </div>
-          );
-        })}
+      <div className="mt-1.5 flex gap-[3px]" role="presentation">
+        {Array.from({ length: levels + 1 }).map((_, i) => (
+          <span key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= at ? (atMax && i === levels ? 'bg-danger' : 'bg-gold') : 'bg-line'}`} />
+        ))}
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-paper/70 ls:hidden">
-        <span>Blind pays <b className="text-paper">{game.blindCost}</b></span>
-        <span>Seen pays <b className="text-paper">{game.seenCost}</b></span>
+      <div className="mt-1 flex justify-between text-[10px] leading-none text-muted">
+        <span>{who ? <>raised by <b className="text-paper/80">{who}</b></> : 'no raises yet'}</span>
+        <span>{atMax ? <b className="text-danger">table max</b> : `max ${maxStake}`}</span>
       </div>
     </div>
   );

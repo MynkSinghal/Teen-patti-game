@@ -82,7 +82,8 @@ test('dealer picks the variation each round; raises, pots, results and hands are
     await expect(p.page.getByTestId(`seat-${first.name}`).getByTestId('committed')).toHaveText(`in ${10 + paid}`);
   }
   await expect(first.page.getByTestId('my-committed')).toHaveText(String(10 + paid));
-  await expect(host.page.getByTestId('stake-ladder')).toContainText('Last raise');
+  await expect(host.page.getByTestId('stake-ladder')).toContainText(`raised by ${first.name}`);
+  await expect(host.page.getByTestId('stake-value')).toHaveText('20');
 
   // the activity feed tells who did what
   await host.page.getByTestId('feed-btn').click();
