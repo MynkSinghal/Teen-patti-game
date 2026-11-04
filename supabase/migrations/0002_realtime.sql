@@ -39,3 +39,6 @@ end $$;
 drop trigger if exists rooms_broadcast on public.rooms;
 create trigger rooms_broadcast after update on public.rooms
   for each row execute function public.broadcast_room_state();
+
+-- The trigger function must not be callable through the Data API (RPC).
+revoke all on function public.broadcast_room_state() from public, anon, authenticated;
