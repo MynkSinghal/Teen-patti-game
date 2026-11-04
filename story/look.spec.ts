@@ -48,8 +48,8 @@ test('look', async ({ browser }) => {
   }
   await expect(ps[1]!.getByTestId('round-result')).toBeVisible({ timeout: 30000 });
   await shot(ps[1]!, '14-result-winner'); await shot(h, '15-result-other');
-  for (const p of ps) if ((await p.getByTestId('choose-game').count()) > 0) { await p.getByTestId('choose-game').click(); await shot(p, '16-picker'); await p.keyboard.press('Escape'); break; }
-  await ps[1]!.getByTestId('round-result').getByLabel('View the table').click();
+  for (const p of ps) if ((await p.getByTestId('choose-game').count()) > 0) { await p.getByTestId('choose-game').click(); await shot(p, '16-picker'); await p.mouse.click(4, 200); break; }
+  await ps[1]!.getByLabel('View the table').click();
   await shot(ps[1]!, '17-table-after');
   await ps[1]!.getByTestId('feed-btn').click();
   await ps[1]!.getByTestId('tab-standings').click(); await shot(ps[1]!, '18-standings');
